@@ -14,19 +14,28 @@ Often you have only a couple of python files, and you want to share them.
 * push
 
 """
-
+from __future__ import print_function
 import io
 import os
 import re
 import ast
 import imp
 import tempfile
+import yaml
+
+# try:
+#     from ConfigParser import ConfigParser
+# except ImportError:
+#     from configparser import ConfigParser
 
 from configparser import ConfigParser
+
 from email.utils import getaddresses
 import subprocess
 from fnmatch import fnmatchcase, fnmatch
 from shutil import copyfile
+
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
 
 
 class PyPiRc:
@@ -43,6 +52,7 @@ class PyPiRc:
         self.author = parser.get('simple_setup', 'author', fallback=None)
         self.author_email = parser.get('simple_setup', 'author_email', fallback=None)
 
+
 class GitConfig:
     """
     ~/.gitconfig
@@ -58,6 +68,7 @@ class GitConfig:
         self.author = parser.get('user', 'name', fallback=None)
         self.author_email = parser.get('user', 'email', fallback=None)
 
+
 class HgRc:
     """
     ~/.hgrc
@@ -68,7 +79,10 @@ class HgRc:
         parser = ConfigParser()
         parser.read(os.path.expanduser('~/.hgrc'))
         username = parser.get('ui', 'username', fallback=None)
-        name_email = getaddresses([username])
+        try:
+            name_email = getaddresses([username])
+        except TypeError:
+            name_email = None
         self.author = None
         self.author_email = None
         if name_email:
@@ -96,6 +110,7 @@ def read(*parts):
     except IOError:
         return ''
 
+
 def version_from_file(fname):
     """
     """
@@ -116,6 +131,7 @@ def version_from_git():
     lines = versions.splitlines()
     if lines:
         return lines[-1].decode('utf-8')
+
 
 # find('*.py', 'some/path/')
 # def find(pattern, path):
@@ -156,7 +172,6 @@ def package_py(what_to_package):
             return apath
 
 
-
 def dependencies_ast(apy):
     """Try to find 3rd party dependencies in the past in .py file.
 
@@ -177,7 +192,6 @@ def dependencies_ast(apy):
                 deps.append(node.module.split('.')[0])
 
     return deps
-
 
 
 class ModuleDocs:
@@ -231,7 +245,6 @@ class GatherInfo:
         if os.path.isdir(self.what_to_package):
             return os.path.split(os.path.abspath(self.what_to_package))[-1]
 
-
     @property
     def description(self):
         return self.module_docs.description
@@ -250,7 +263,6 @@ class GatherInfo:
         if ver is None:
             ver = '0.0.0'
         return ver
-
 
     @property
     def url(self):
@@ -278,8 +290,6 @@ class GatherInfo:
     @property
     def is_single_file(self):
         return package_py(self.what_to_package)
-
-
 
     def __str__(self):
         """
@@ -350,10 +360,11 @@ class FillFiles:
     def __init__(self, package_info):
         self.package_info = package_info
         self.tmpdir = tempfile.mkdtemp()
-        print (self.tmpdir)
+        print(self.tmpdir)
         # repo = 'https://github.com/pypa/sampleproject/'
         # subprocess.check_output = 'git clone %s %s' % (repo, self.tmpdir)
 
+    def fill_files(self):
         setup_py_data = self.setup_py()
         manifest_in_data = self.manifest_in()
 
@@ -361,9 +372,7 @@ class FillFiles:
             afile.write(setup_py_data)
         with open(os.path.join(self.tmpdir, 'MANIFEST.in'), 'w') as afile:
             afile.write(manifest_in_data)
-
         self.copy_files()
-
 
     def copy_files(self):
         """Copies our package files into the new output folder.
@@ -374,7 +383,6 @@ class FillFiles:
             copyfile(pyfname, dstpath)
         else:
             raise NotImplementedError('only single files supported')
-
 
     def manifest_in(self):
         """Fill in a MANIFEST.in
@@ -405,7 +413,6 @@ class FillFiles:
             py_modules = ''
             packages = "packages=find_packages(exclude=['contrib', 'docs', 'tests']),"
 
-
         install_requires = "install_requires=%s," % repr(self.package_info.install_requires)
 
         return SETUP_PY.format(name=self.package_info.name,
@@ -422,23 +429,120 @@ class FillFiles:
                                py_modules=py_modules)
 
 
+def fill_files(package_info):
+    filler = FillFiles(package_info)
+    filler.fill_files()
+    return filler.tmpdir
+
+
 class UploadPyPi:
+    """Builds pypackage project and uploads to PyPi.
+
+    Commands for build are intended to be stored in a config file
+    to allow for easy customization. Config format is `yaml`. If
+    no config is found the default commands should be used.
+    Errors during build will set the self.errors switch to True
+    indicating there was an error.
     """
-    """
-    # twine upload dist/*.tar.gz
+
+    command_file = os.path.join(SCRIPT_PATH, "pybuilder.yml")
+    default_commands = {
+        "builds": [
+            "python setup.py sdist",
+            "python setup.py bdist_wheel --universal"
+        ]
+    }
+
+    def __init__(self):
+        self.errors = None
+        self.config = self._read_command_config()
+
     def build(self):
-        # python setup.py build sdist bdist_wheel
-        pass
+        """Build out project distros.
+
+        Build commands are pulled from config file to
+        allow for easy customization.
+        """
+        for cmd in self.config["builds"]:
+            try:
+                subprocess.call(cmd, shell=True)
+            except Exception as e:
+                print("Error processing", str(cmd))
+                print(e)
+                self.errors = True
+                return
+            else:
+                self.errors = False
+
     def upload(self):
+        """Uploads package to PyPi using twine.
+        The advantage to using Twine is your package is uploaded
+
+        over HTTPS which prevents your private info from appearing
+        in the request header.
+        """
+        response = subprocess.call("twine upload dist/*", shell=True)
+        if response == 127:
+            print("Twine not installed.. Cancelled.")
+            self.errors = True
+
+    def _read_command_config(self):
+        """Get yaml config file with build commands.
+
+        If no config file is found the defaults are used
+        """
+        if not os.path.isfile(self.command_file):
+            return self.default_commands
+        with open(self.command_file, 'r') as f:
+            return yaml.load(f.read())
+
+    @property
+    def success(self):
+        """Get build and deploy status.
+
+        If self.errors is None, then no builds have been
+        attempted yet. Otherwise returns False if an error
+        was detected, True if build was a success.
+        """
+        if self.errors is None:
+            return False
+        return not self.errors
+
+
+def build_and_upload_to_pypi(path):
+    """Helper function for `UploadPyPi` class.
+
+    Raises BuildError Exception if errors occur during build.
+    Raises DeployError Exception if error occurs during upload
+
+    TODO: Need better twine update status.
+
+    """
+    class BuildError(Exception):
         pass
-        # python setup.py upload
+
+    class DeployError(Exception):
+        pass
+
+    builder = UploadPyPi()
+    os.chdir(path)
+    builder.build()
+    if not builder.success:
+        raise BuildError("Error while building package.")
+    builder.upload()
+    if not builder.success:
+        raise DeployError("Error deploying package to PyPi")
 
 
 def main():
-    """
+    """Main entry point for pyrelease.
+
+    Gathers info for package, fills out necessary files, builds,
+    then uploads to PyPi
     """
     package_info = GatherInfo('.')
-    filled_files = FillFiles(package_info)
+    temp_dir = fill_files(package_info)
+    build_and_upload_to_pypi(temp_dir)
 
 
 if __name__ == '__main__':
