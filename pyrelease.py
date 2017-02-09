@@ -449,13 +449,16 @@ class UploadPyPi:
     default_commands = {
         "builds": [
             "python setup.py sdist",
-            "python setup.py bdist_wheel --universal"
+            "python setup.py bdist_wheel --universal",
         ]
     }
 
-    def __init__(self):
+    def __init__(self, test=False):
         self.errors = None
         self.config = self._read_command_config()
+
+        # Set True to upload to PyPi test server.
+        self.use_test_server = test
 
     def build(self):
         """Build out project distros.
@@ -474,6 +477,12 @@ class UploadPyPi:
             else:
                 self.errors = False
 
+        # If using test server then project needs to register first.
+        # Not necessary for normal PyPi server
+        if self.use_test_server:
+            register_test_site = "python setup.py register -r https://testpypi.python.org/pypi",    # FOR PYPI TEST SITE
+            subprocess.call(register_test_site, shell=True)
+
     def upload(self):
         """Uploads package to PyPi using twine.
         The advantage to using Twine is your package is uploaded
@@ -481,7 +490,12 @@ class UploadPyPi:
         over HTTPS which prevents your private info from appearing
         in the request header.
         """
-        response = subprocess.call("twine upload dist/*", shell=True)
+        if self.use_test_server:
+            response = subprocess.call("twine upload dist/* -r testpypi", shell=True)   # TEST SERVER
+        else:
+            response = subprocess.call("twine upload dist/*", shell=True)
+
+        # TODO: This needs to be better..
         if response == 127:
             print("Twine not installed.. Cancelled.")
             self.errors = True
@@ -509,7 +523,7 @@ class UploadPyPi:
         return not self.errors
 
 
-def build_and_upload_to_pypi(path):
+def build_and_upload_to_pypi(path, test=False):
     """Helper function for `UploadPyPi` class.
 
     Raises BuildError Exception if errors occur during build.
@@ -524,7 +538,7 @@ def build_and_upload_to_pypi(path):
     class DeployError(Exception):
         pass
 
-    builder = UploadPyPi()
+    builder = UploadPyPi(test)
     os.chdir(path)
     builder.build()
     if not builder.success:
@@ -542,7 +556,7 @@ def main():
     """
     package_info = GatherInfo('.')
     temp_dir = fill_files(package_info)
-    build_and_upload_to_pypi(temp_dir)
+    build_and_upload_to_pypi(temp_dir, test=True)
 
 
 if __name__ == '__main__':
