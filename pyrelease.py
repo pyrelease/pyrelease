@@ -79,7 +79,10 @@ class HgRc:
         parser = ConfigParser()
         parser.read(os.path.expanduser('~/.hgrc'))
         username = parser.get('ui', 'username', fallback=None)
-        name_email = getaddresses([username])
+        try:
+            name_email = getaddresses([username])
+        except TypeError:
+            name_email = None
         self.author = None
         self.author_email = None
         if name_email:
@@ -357,7 +360,7 @@ class FillFiles:
     def __init__(self, package_info):
         self.package_info = package_info
         self.tmpdir = tempfile.mkdtemp()
-        print (self.tmpdir)
+        print(self.tmpdir)
         # repo = 'https://github.com/pypa/sampleproject/'
         # subprocess.check_output = 'git clone %s %s' % (repo, self.tmpdir)
 
@@ -429,6 +432,7 @@ class FillFiles:
 def fill_files(package_info):
     filler = FillFiles(package_info)
     filler.fill_files()
+    return filler.tmpdir
 
 
 class UploadPyPi:
@@ -466,6 +470,9 @@ class UploadPyPi:
                 print("Error processing", str(cmd))
                 print(e)
                 self.errors = True
+                return
+            else:
+                self.errors = False
 
     def upload(self):
         """Uploads package to PyPi using twine.
@@ -502,7 +509,7 @@ class UploadPyPi:
         return not self.errors
 
 
-def build_and_upload_to_pypi():
+def build_and_upload_to_pypi(path):
     """Helper function for `UploadPyPi` class.
 
     Raises BuildError Exception if errors occur during build.
@@ -518,6 +525,7 @@ def build_and_upload_to_pypi():
         pass
 
     builder = UploadPyPi()
+    os.chdir(path)
     builder.build()
     if not builder.success:
         raise BuildError("Error while building package.")
@@ -533,8 +541,8 @@ def main():
     then uploads to PyPi
     """
     package_info = GatherInfo('.')
-    fill_files(package_info)
-    build_and_upload_to_pypi()
+    temp_dir = fill_files(package_info)
+    build_and_upload_to_pypi(temp_dir)
 
 
 if __name__ == '__main__':
