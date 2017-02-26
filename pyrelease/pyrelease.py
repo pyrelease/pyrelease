@@ -26,13 +26,13 @@ import tempfile
 import imp
 import yaml
 import subprocess
-from shutil import copyfile, copy as copy_to_dir
+from shutil import copy as copy_to_dir
 
 from .templates.manifest_in import MANIFEST_IN
 from .templates.setup_py import SETUP_PY, CONSOLE_SCRIPTS
-from .models import PyPiRc, GitConfig, HgRc, DotGitConfig
-from .doc2md import doc2md, mod2md
-from ._utils import execute_shell_command
+from .userdata import PyPiRc, GitConfig, HgRc, DotGitConfig
+from .extern.doc2md import doc2md, mod2md
+from .shelltools import execute_shell_command
 
 PY2 = sys.version_info[0] == 2
 
@@ -52,7 +52,7 @@ def read(*parts):
 
 
 def version_from_file(fname):
-    """
+    """ TODO: Make a test for this to compare against regex from trabBuild
     """
     version_file = read(fname)
     version_match = re.search(r'^__version__ = [\'"]([^\'"]*)[\'"]',
@@ -449,7 +449,6 @@ class Builder:
     def upload(self):
         """Uploads package to PyPi using twine.
         The advantage to using Twine is your package is uploaded
-
         over HTTPS which prevents your private info from appearing
         in the request header.
         """

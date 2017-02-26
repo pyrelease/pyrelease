@@ -6,6 +6,7 @@ import subprocess
 
 @contextlib.contextmanager
 def ignore_stdout():
+    """ A context manager that suppresses stdout."""
     devnull = os.open(os.devnull, os.O_WRONLY)
     old_stdout = os.dup(2)
     sys.stdout.flush()
@@ -20,6 +21,7 @@ def ignore_stdout():
 
 @contextlib.contextmanager
 def ignore_stderr():
+    """ A context manager that suppresses stderr."""
     devnull = os.open(os.devnull, os.O_WRONLY)
     old_stderr = os.dup(2)
     sys.stderr.flush()
@@ -33,6 +35,9 @@ def ignore_stderr():
 
 
 def execute_shell_command(cmd, suppress=True):
+    """ Call subprocess on cmd and silence any exceptions to
+     be sent to log for postmortem error handling
+     """
     null_file = open(os.devnull, 'w')
     try:
         if suppress:
