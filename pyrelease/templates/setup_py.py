@@ -1,11 +1,11 @@
-SETUP_PY = """\
+TEMPLATE = """\
 from os import path
 from setuptools import setup{find_packages}
 
 SETUP_DIR = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(SETUP_DIR, 'README.md')) as f:
+with open(path.join(SETUP_DIR, 'README.rst')) as f:
     long_description = f.read()
 
 # get the dependencies and installs
@@ -16,7 +16,7 @@ with open(path.join(SETUP_DIR, 'requirements.txt')) as f:
 setup(
     name='{name}',
     version='{version}',
-    description={description},
+    description='{description}',
     long_description=long_description,
     url='{url}',
     author='{author}',

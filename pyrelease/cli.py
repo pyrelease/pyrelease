@@ -1,28 +1,26 @@
 import os
-import sys
+import logging
+
 import click
 
+# ######## LOGGING #########
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-class Context(object):
+# File handler
+# handler = logging.FileHandler(os.path.join(os.getcwd(), 'build.log'), 'w')
+# handler.setLevel(logging.INFO)
+# formatter = logging.Formatter(
+#     '%(message)s')
+# handler.setFormatter(formatter)
+# logger.addHandler(handler)
 
-    def __init__(self):
-        self.verbose = False
-        self.home = os.getcwd()
-
-    def log(self, msg, *args):
-        """Logs a message to stderr."""
-        if args:
-            for i in args:
-                msg = msg + " " + i
-        click.echo(msg, file=sys.stderr)
-
-    def vlog(self, msg, *args):
-        """Logs a message to stderr only if verbose is enabled."""
-        if self.verbose:
-            self.log(msg, *args)
-
-
-pass_context = click.make_pass_decorator(Context, ensure=True)
+# Stream handler
+s_handler = logging.StreamHandler()
+s_handler.setLevel(logging.DEBUG)
+s_formatter = logging.Formatter('%(message)s')
+s_handler.setFormatter(s_formatter)
+logger.addHandler(s_handler)
 
 
 @click.command()
@@ -41,23 +39,21 @@ pass_context = click.make_pass_decorator(Context, ensure=True)
               help='Deploy to PyPi test server instead.')
 @click.option('-v', '--verbose', is_flag=True,
               help='Enables verbose mode for debugging.')
-@pass_context
-def release(ctx, verbose, project, version, output_path,
-            dists_path, target_test_pypi):
+def release(project, version, output_path,
+            dists_path, target_test_pypi, verbose):
     """Releasing python code - an experiment in zero config releases.
 
     Pyrelease gathers info for package, fills out necessary files, builds,
     then uploads to PyPi.
     """
-    from .pyrelease import GatherInfo, fill_files, build_and_upload_to_pypi
+    from .pyrelease import PyPackage, Builder
+    package = PyPackage(project)
+    if package.version is None:
+        click.echo(f"")
+    else:
+        click.echo(f"You are on version {package.version}. If you have this set in"
+               f"")
 
-    ctx.verbose = verbose
-    if project is not None:
-        ctx.home = project
-    package_info = GatherInfo(ctx)
-    if version is not None:
-        package_info.set_package_version(version)
-    package = fill_files(package_info, target=output_path, context=ctx)
-    build_and_upload_to_pypi(package, test=target_test_pypi, output_dir=dists_path, context=ctx)
+
 
 main = release

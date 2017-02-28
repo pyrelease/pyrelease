@@ -2,6 +2,10 @@ import os
 from email.utils import getaddresses
 from configparser import ConfigParser
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class UserConfigMixin(object):
     def __str__(self):

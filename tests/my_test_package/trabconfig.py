@@ -6,13 +6,12 @@ import ast
 import yaml
 
 __all__ = ["trabConfig"]
+__license__ = 'MIT'
+__version__ = '0.4.5'
 
 
 class trabConfig():
-    """A simple config parser with auto-save that supports yaml and json.
-
-    - MIT Licensed
-    """
+    """A simple config parser with auto-save that supports yaml and json. - MIT Licensed"""
 
     def __init__(self, path, autosave=False, data="dict"):
         """Loads a config file from ``path``. If ``autosave`` is set to True

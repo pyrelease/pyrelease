@@ -34,7 +34,7 @@ def ignore_stderr():
         os.close(old_stderr)
 
 
-def execute_shell_command(cmd, suppress=True):
+def execute_shell_command(cmd, suppress=True, shell=True):
     """ Call subprocess on cmd and silence any exceptions to
      be sent to log for postmortem error handling
      """
@@ -42,9 +42,9 @@ def execute_shell_command(cmd, suppress=True):
     try:
         if suppress:
             with ignore_stdout():
-                rv = subprocess.call(cmd, shell=True, stdout=null_file, stderr=subprocess.STDOUT)
+                rv = subprocess.call(cmd, shell=shell, stdout=null_file, stderr=subprocess.STDOUT)
         else:
-            rv = subprocess.call(cmd, shell=True, stdout=null_file, stderr=subprocess.STDOUT)
+            rv = subprocess.call(cmd, shell=True)
     except Exception as e:
         print("Error processing", str(cmd))
         print(e)

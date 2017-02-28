@@ -140,3 +140,6 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 /.idea/markdown-navigator.xml
+/build/
+/dist/
+/old/
