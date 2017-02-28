@@ -664,8 +664,8 @@ def main():
     builder.upload()
     slow_log(print("Package up-loaded successfully."))
     state = "TEST server" if builder.use_test_server else "server"
-    print("Thanks for using PyRelease, your completed files can be"
-          "found in the %s directory. And on the PyPi %s" % (package.build_dir, state))
+    slow_log(print("Thanks for using PyRelease, your completed files can be "
+          "found in the %s directory, and on the PyPi %s" % (package.build_dir, state)))
 
 
 if __name__ == '__main__':
