@@ -7,7 +7,7 @@ import yaml
 
 __all__ = ["trabConfig"]
 __license__ = 'MIT'
-__version__ = '0.4.5'
+__version__ = '0.4.7'
 
 
 class trabConfig():
