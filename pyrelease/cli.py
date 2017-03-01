@@ -75,6 +75,7 @@ class Generator(object):
               help='Deploy to PyPi test server instead.')
 @click.option('-v', '--verbose', is_flag=True,
               help='Enables verbose mode for debugging.')
+@click.argument('project')
 def release(project, output_path, dists_path, target_test_pypi, verbose):
     """Releasing python code - an experiment in zero config releases.
 
@@ -91,30 +92,30 @@ def release(project, output_path, dists_path, target_test_pypi, verbose):
     g.title("PyRelease wizard")
 
     g.text(
-        f"This wizard will help guide you through setting up {package.name} "
-        f"for release on pypi. Don't worry, you won't have to do much!"
+        "This wizard will help guide you through setting up %s "
+        "for release on pypi. Don't worry, you won't have to do much!" % package.name
     )
+    if not os.path.exists(os.path.expanduser('~/.pypirc')):
+        v = g.prompt("No .pypirc file found. You must create one if you want to upload to Pypi. "
+                     "Please refer to https://docs.python.org/2/distutils/packageindex.html#pypirc "
+                     "for more info. Continue?", default=True)
+        if not v:
+            g.text("Exiting.")
+            exit()
 
     if package.version is None:
         v = g.prompt("You don't have a version specified in your main file. Either "
-                     "create a version line in your file or enter one here:",
-                     default="0.1.0")
+                     "create a version line in your file or enter one here:", default="0.1.0")
         package.version = v
     else:
-        proceed = g.prompt(f"{package.name} is set to version {package.version} in {package.target_file}, "
-                           f"if you need to change it please exit and do so now. Then when you are ready you "
-                           f"can run pyrelease again. Continue?", default=True)
+        proceed = g.prompt("%s is set to version %s in %s, "
+                           "if you need to change it please exit and do so now. "
+                           "Then when you are ready you can run pyrelease again. "
+                           "Continue?" % (package.name, package.version, package.target_file), default=True)
         if not proceed:
             g.text("Exiting")
             exit()
     g.text("Proceeding!")
-
-
-    # import pprint
-    #
-    # p = ([{i: v} for i, v in package.__dict__.items() if not i.startswith("_")])
-    #
-    # pprint.pprint(p, indent=2)
 
 
 main = release

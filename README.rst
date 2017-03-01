@@ -5,7 +5,7 @@ A simple single file package builder. Automatically creates all the files
 required for a basic PyPi package and uploads to either the test or the
 regular PyPi servers.
 
-*Tested on Python 3.6.*
+*Tested on Python 3.6. and Python 2.7*
 
 **Features**
 
@@ -17,8 +17,7 @@ regular PyPi servers.
  - Automatically detects and includes data folder
  - Automatic pydoc, API documentation creation
  - Build steps are split into many stages allowing for
- - Preview you README.rst in rest view before commiting
- hooks at almost any point of the build.
+ - Preview you README.rst in rest view before commiting hooks at almost any point of the build.
  - Adds MIT license automatically (soon to be more)
 
 This doesn't cover everything, check out the code if you want to see more.

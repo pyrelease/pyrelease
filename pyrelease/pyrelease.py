@@ -1,12 +1,11 @@
+from __future__ import print_function, absolute_import
 import os
 import sys
 import re
 import ast
-import time
 import imp
 import datetime
 import subprocess
-import contextlib
 import logging
 import pydoc
 import tempfile
@@ -15,8 +14,9 @@ from shutil import copytree as copy_dir
 
 from .userdata import PyPiRc, GitConfig, HgRc
 from .templates import readme_rst, manifest_in, setup_py
-from .shelltools import execute_shell_command, ignore_stdout
+from .shelltools import execute_shell_command, ignore_stdout, dir_context
 from .licenses import MIT
+from .compat import input
 
 # ######## LOGGING #########
 logger = logging.getLogger(__name__)
@@ -36,17 +36,6 @@ logger.setLevel(logging.WARNING)
 # s_formatter = logging.Formatter('%(message)s')
 # s_handler.setFormatter(s_formatter)
 # logger.addHandler(s_handler)
-
-INTERVAL = 0
-
-
-def slow_log(arg, interval=1):
-    """ This function merely slows down the build steps in the main
-     function below by introducing `interval` which can be customized
-     as seconds between commands. ie `0.5` = half a second, `1` = one
-     second, etc.."""
-    time.sleep(interval)
-##############################
 
 
 def find_package(target):
@@ -72,7 +61,6 @@ def find_package(target):
             raise InvalidPackageName("Filename cannot contain dashes." )
         # Single file package, just what we want.
         logger.info("Single file target found (%s)", target)
-        time.sleep(INTERVAL) ###### -----------------------------------------<<<<<<<<<<<<<
         return os.path.abspath(target)
 
     elif os.path.isdir(target) or target == '.':
@@ -80,7 +68,6 @@ def find_package(target):
         path = os.path.join(target, '__init__.py')
         if os.path.exists(path):
             logger.info("Single file target found (%s)", path)
-            time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
             return os.path.abspath(path)
 
         # maybe there is a file with the same name as the folder?
@@ -91,14 +78,12 @@ def find_package(target):
         path = os.path.join(target, folder_name + '.py')
         if os.path.exists(path):
             logger.info("Single file target found (%s)", path)
-            time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
             return os.path.abspath(path)
 
         # Check for an __init__.py file in there while we're at it.
         path = os.path.join(target, folder_name, '__init__.py')
         if os.path.exists(path):
             logger.info("Single file target found (%s)", path)
-            time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
             return os.path.abspath(path)
 
         logger.error("No valid package found in. (%s)", target)
@@ -128,7 +113,6 @@ def get_version(py_file):
             if line.startswith("__version__"):
                 version = re.search(VERSION_REGEX, line).group()
                 logger.info("Version found - %s -", str(version))
-                time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
                 return version
     return False
 #         try:
@@ -168,7 +152,6 @@ def get_license(target):
                 #     print(resp['identifiers']['text'])
                 #     input()
     logger.warning("Still no license string :/")
-    time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
     return None
 
 
@@ -182,14 +165,12 @@ def get_package_info(name, package_dir):
         mod = __import__(name)
     except Exception as e:
         logger.error("Error importing module build_docs function (%s)", exc_info=True)
-        time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
     else:
         entry = mod.__dict__[mod.__all__[0]]
         description = ""
         if entry.__doc__:
             description = entry.__doc__
         logger.info("Description: %s", str(description))
-        time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
         _license = get_license(os.path.join(package_dir, name + ".py"))
         rv = dict(
             module=mod,
@@ -224,10 +205,8 @@ def get_name(path):
      """
     if path is None:
         logger.error("Target is None..")
-        time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
         exit()
     logger.info("Target: %s", path)
-    time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
     if path.endswith('.py'):
         return os.path.split(path)[-1].rstrip('.py')
 
@@ -277,7 +256,6 @@ def get_dependencies(target):
     for dep in deps:
         parsed_deps.append(conversions.get(dep, dep))
     logger.info("Found dependencies. (%s)", "\n".join(parsed_deps))
-    time.sleep(INTERVAL)  ###### -----------------------------------------<<<<<<<<<<<<<
     return parsed_deps
 
 
@@ -326,7 +304,8 @@ class PyPackage(object):
         if rv is None:
             rv = self.user_info['gitconfig'].author
         if rv is None:
-            return get_author()
+            rv = get_author()
+        self.user_info['pypirc'].author = rv
         return rv
 
     @property
@@ -335,7 +314,8 @@ class PyPackage(object):
         if rv is None:
             rv = self.user_info['gitconfig'].author_email
         if rv is None:
-            return get_author_email()
+            rv = get_author_email()
+        self.user_info['pypirc'].author_email = rv
         return rv
 
     @property
@@ -388,7 +368,7 @@ class PyPackage(object):
         """
         if not self.PACKAGE_FILES['readme_rst']:
             self.build_readme()
-        with dists_context(self.build_dir):
+        with dir_context(self.build_dir):
             input("Press enter to view a preview of your README.rst file. When you're done, press enter again.")
             logger.info("Opening README.rst in restview. ")
             with ignore_stdout():
@@ -503,19 +483,6 @@ class PyPackage(object):
         self.copy_files()
 
 
-@contextlib.contextmanager
-def dists_context(target_dir):
-    """Context manager that runs commands in the provided target_dir
-     and swicthes back to the previous dir automatically
-     """
-    current_dir = os.getcwd()
-    os.chdir(os.path.abspath(target_dir))
-    try:
-        yield
-    finally:
-        os.chdir(current_dir)
-
-
 class Builder:
     """Builds pypackage project and uploads to PyPi.
 
@@ -532,7 +499,7 @@ class Builder:
     dists_folder = None
     errors = None
 
-    def __init__(self, package: PyPackage, test=False):
+    def __init__(self, package, test=False):
         self.package = package
         self.dists_folder = package.build_dir
         self.file_name = package.target_file + ".py"
@@ -544,7 +511,7 @@ class Builder:
         """Builds out project distros, console output can be suppressed
          by setting show_output to True.
          """
-        with dists_context(self.dists_folder):
+        with dir_context(self.dists_folder):
             for cmd in self.commands:
                 # TODO: This needs to be better. Not enough info on the build.
                 logger.info("Executing command - %s", str(cmd))
@@ -557,12 +524,17 @@ class Builder:
         over HTTPS which prevents your private info from appearing
         in the request header.
         """
-        with dists_context(self.dists_folder):
+        if not os.path.exists(os.path.expanduser('~/.pypirc')):
+            print("No .pypirc file found. You must create one if you want to upload to Pypi. Please refer to https://docs.python.org/2/distutils/packageindex.html#pypirc for more info.")
+            print("No .pypirc found. Aborting. Please see https://docs.python.org/2/distutils/packageindex.html#pypirc for more info")
+            self.errors = True
+            return
+        with dir_context(self.dists_folder):
             # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure the default pip or setuptools uses https _without_ needing to be upgraded first. Because if not, that makes twine the most secure way.
             if self.use_test_server:
                 logger.info("To upload to the test server you need to first register your package.\n"
                             "Please enter you PyPi password when prompted.")
-                time.sleep(INTERVAL)
+                
                 register_test_site = "python setup.py register -r https://testpypi.python.org/pypi",  # FOR PYPI TEST SITE
                 execute_shell_command(register_test_site, suppress=show_output)
                 logger.info("Done")
@@ -615,34 +587,33 @@ def main():
     # --------------------------------------------- Package creation
 
     package = PyPackage(args[1])
-    slow_log(print("Package loaded, making files."))
+    print("Package loaded, making files.")
 
     package.build_docs()
-    slow_log(print("index.html built"))
+    print("index.html built")
 
     package.build_readme()
-    slow_log(print("readme.rst built"))
+    print("readme.rst built")
 
     package.build_license()
-    slow_log(print("LICENSE.md built"))
+    print("LICENSE.md built")
 
     package.build_manifest()
-    slow_log(print("manifest.in built"))
+    print("manifest.in built")
 
     package.build_requirements()
-    slow_log(print("requirements.txt built"))
+    print("requirements.txt built")
 
     package.build_setup()
-    slow_log(print("setup.py file built"))
+    print("setup.py file built")
 
-    # Browser preview. ------------------------------ Browser preview
-    slow_log(print("Previewing in browser."))
+    print("Previewing in browser.")
     package.preview_readme()
     # ------------------------------------------------
 
     # Create the package for the Builder.F
     package.create_package()
-    slow_log(print("Package created"))
+    print("Package created")
 
     # ------------------------------------------------- Build commands
 
@@ -650,28 +621,29 @@ def main():
 
     # Test means upload to test site ore not.
     builder = Builder(package, test=True)
-    slow_log(print("Builder loaded"))
+    print("Builder loaded")
 
     # show_output turns on console output
     # for the various setup.py build commands
     # and any pypi upload commands.
     builder.build(show_output=True)
-    slow_log(print("Package built"))
+    print("Package built")
 
     if builder.use_test_server:
-        slow_log(print("PyPi server is set to TESTING server."))
+        print("PyPi server is set to TESTING server.")
     else:
-        slow_log(print("PyPi server is set to NORMAL server."))
+        print("PyPi server is set to NORMAL server.")
     input("Press enter to continue on to the upload step. Or press ctrl-c to exit.")
     # There is an input sentinal that will allow you to
     # Exit before any attempt to upload is made.
     builder.upload()
-    slow_log(print("Package up-loaded successfully."))
-    state = "TEST server" if builder.use_test_server else "server"
-    slow_log(print("Thanks for using PyRelease, your completed files can be "
-          "found in the %s directory, and on the PyPi %s" % (package.build_dir, state)))
-
-
+    if builder.success:
+        print("Package up-loaded successfully.")
+        state = "TEST server" if builder.use_test_server else "server"
+        print("Thanks for using PyRelease, your completed files can be "
+              "found in the %s directory, and on the PyPi %s" % (package.build_dir, state))
+    else:
+        print("Build completed with errors..")
 if __name__ == '__main__':
     main()
 

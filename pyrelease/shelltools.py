@@ -5,6 +5,19 @@ import subprocess
 
 
 @contextlib.contextmanager
+def dir_context(target_dir):
+    """Context manager that runs commands in the provided target_dir
+     and swicthes back to the previous dir automatically
+     """
+    current_dir = os.getcwd()
+    os.chdir(os.path.abspath(target_dir))
+    try:
+        yield
+    finally:
+        os.chdir(current_dir)
+
+
+@contextlib.contextmanager
 def ignore_stdout():
     """ A context manager that suppresses stdout."""
     devnull = os.open(os.devnull, os.O_WRONLY)
