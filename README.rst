@@ -5,7 +5,7 @@ A simple single file package builder. Automatically creates all the files
 required for a basic PyPi package and uploads to either the test or the
 regular PyPi servers.
 
-*Tested on Python 3.6.*
+*Tested on Python 3.6. and Python 2.7*
 
 **Features**
 
