@@ -24,7 +24,7 @@ dependency_links = [x.strip().replace('git+', '') for x in all_reqs if x.startsw
 setup(
     name='pyrelease',
     version=__version__,
-    long_description=read_md('README.md'),
+    long_description=read_md('README.rst'),
     license='MIT',
     author='Scott Doucet',
     author_email='duroktar@gmail.com',
@@ -35,6 +35,7 @@ setup(
     entry_points={
         'console_scripts': [
             'pyrelease=pyrelease.pyrelease:main',
+            'pyrelease-cli=pyrelease.cli:main',
         ],
     },
 )
