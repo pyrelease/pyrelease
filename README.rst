@@ -17,8 +17,7 @@ regular PyPi servers.
  - Automatically detects and includes data folder
  - Automatic pydoc, API documentation creation
  - Build steps are split into many stages allowing for
- - Preview you README.rst in rest view before commiting
- hooks at almost any point of the build.
+ - Preview you README.rst in rest view before commiting hooks at almost any point of the build.
  - Adds MIT license automatically (soon to be more)
 
 This doesn't cover everything, check out the code if you want to see more.
@@ -41,6 +40,22 @@ This will install pyrelease in "editable" mode and any changes you make
 to the source code will be reflected when you run the pyrelease. This way
 you can work on and modify the code without having to rebuild and install
 pyrelease everytime you modify the code.
+
+**Note:** To be able to upload to the PyPi server and test server you must
+have a ~/.pypirc file with these sections::
+
+    [distutils]
+    index-servers=
+        pypi
+        testpypi
+
+    [testpypi]
+    repository = https://testpypi.python.org/pypi
+    username = *Test PyPi Username*     # Enter your PyPi Test Site username here
+
+    [pypi]
+    repository = https://pypi.python.org/pypi
+    username = *PyPi Username*          # Enter your PyPi username here
 
 As of right now I'm using the `main` function in the pyrelease.py file
 as an entry point. What that means is once you have installed in editable
