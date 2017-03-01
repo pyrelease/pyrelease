@@ -20,7 +20,7 @@ from .licenses import MIT
 
 # ######## LOGGING #########
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.WARNING)
 
 # File handler
 # handler = logging.FileHandler(os.path.join(os.getcwd(), 'build.log'), 'w')
@@ -31,13 +31,13 @@ logger.setLevel(logging.DEBUG)
 # logger.addHandler(handler)
 
 # Stream handler
-s_handler = logging.StreamHandler()
-s_handler.setLevel(logging.DEBUG)
-s_formatter = logging.Formatter('%(message)s')
-s_handler.setFormatter(s_formatter)
-logger.addHandler(s_handler)
+# s_handler = logging.StreamHandler()
+# s_handler.setLevel(logging.DEBUG)
+# s_formatter = logging.Formatter('%(message)s')
+# s_handler.setFormatter(s_formatter)
+# logger.addHandler(s_handler)
 
-INTERVAL = 0.5
+INTERVAL = 0
 
 
 def slow_log(arg, interval=1):
@@ -358,6 +358,10 @@ class PyPackage(object):
     def is_data_files(self):
         return os.path.exists(os.path.join(self.package_dir, 'data'))
 
+    @property
+    def readme(self):
+        return self.long_description
+
     def build_readme(self):
         """Builds your projects README.rst file from a template."""
         rv = readme_rst.TEMPLATE.format(
@@ -376,7 +380,7 @@ class PyPackage(object):
         self.PACKAGE_FILES['readme_rst'] = rv
         with open(os.path.join(self.build_dir, "README.rst"), 'w') as f:
             f.write(rv)
-        return self
+        return rv
 
     # TODO: This could probably go somewhere else.
     def preview_readme(self):
@@ -401,7 +405,7 @@ class PyPackage(object):
         self.PACKAGE_FILES['manifest_in'] = rv
         with open(os.path.join(self.build_dir, 'MANIFEST.in'), 'w') as f:
             f.write(rv)
-        return self
+        # return self
 
     def build_setup(self):
         """Build out the setup.py file for the release."""
@@ -438,7 +442,7 @@ class PyPackage(object):
         self.PACKAGE_FILES['setup_py'] = rv
         with open(os.path.join(self.build_dir, 'setup.py'), 'w') as f:
             f.write(rv)
-        return self
+        # return self
 
     def build_license(self):
         """Create you license file. Only supports MIT for now but only because I'm lazy,
@@ -450,7 +454,7 @@ class PyPackage(object):
         self.PACKAGE_FILES['license_md'] = rv
         with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
             f.writelines(rv)
-        return self
+        # return self
 
     def build_docs(self):
         """Builds a pydoc API documention of your script in html"""
@@ -463,13 +467,13 @@ class PyPackage(object):
         self.PACKAGE_FILES['license_md'] = html
         with open(os.path.join(self.build_dir, 'docs', 'index.html'), 'w') as f:
             f.write(html)
-        return self
+        # return self
 
     def build_requirements(self):
         """Writes the requirements.txt file"""
         with open(os.path.join(self.build_dir, "requirements.txt"), 'w') as f:
             f.writelines(self.requirements)
-        return self
+        # return self
 
     def copy_files(self):
         """Copies our package files into the new output folder.
@@ -479,7 +483,7 @@ class PyPackage(object):
             raise NotImplementedError('only single files supported')
 
         copy_to_dir(self.target_file, self.build_dir)
-        return self
+        # return self
 
     def build_all(self):
         """ Help method to just giver and build the whole thing"""
