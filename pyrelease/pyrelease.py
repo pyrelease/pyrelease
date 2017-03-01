@@ -15,7 +15,7 @@ from shutil import copytree as copy_dir
 from .userdata import PyPiRc, GitConfig, HgRc
 from .templates import readme_rst, manifest_in, setup_py
 from .shelltools import execute_shell_command, ignore_stdout, dir_context
-from .licenses import MIT
+from .licenses import MIT, UNLICENSE, APACHE_2, GPL_3, BSD_2, BSD_3, LGPL_2, LGPL_3
 from .compat import input
 
 # ######## LOGGING #########
@@ -151,7 +151,7 @@ def get_license(target):
                 #     pprint.pprint(resp)
                 #     print(resp['identifiers']['text'])
                 #     input()
-    logger.warning("Still no license string :/")
+    # logger.warning("Still no license string :/")
     return None
 
 
@@ -271,6 +271,17 @@ class PyPackage(object):
      Currently .gitconfig, .hgrc, and .pypirc files are supported, but more
      can easily be added should the need arise.
      """
+    LICENSES = {
+        'APACHE-2': APACHE_2.TEMPLATE,
+        'GPL-3': GPL_3,
+        'BSD-2': BSD_2,
+        'BSD-3': BSD_3,
+        'LGPL-2': LGPL_2,
+        'LGPL-3': LGPL_3,
+        'MIT': MIT.TEMPLATE,
+        'UNLICENSE': UNLICENSE.TEMPLATE,
+    }
+
     PACKAGE_FILES = {}
 
     def __init__(self, path, build_dir='.'):
@@ -298,6 +309,29 @@ class PyPackage(object):
 
         self.long_description = self.build_readme()
 
+    def set_license(self, value):
+        try:
+            self.package_info['license'] = value
+        except (KeyError, ValueError) as e:
+            logger.error("There was an error setting the License.", exc_info=True)
+
+
+    def jsonize(self):
+        rv = {}
+        for k, v in self.__dict__.items():
+            if k.startswith("_"):
+                continue
+            rv.update({k: v})
+        return rv
+
+    def __str__(self):
+        rv = []
+        for k, v in self.__dict__.items():
+            if k.startswith("_"):
+                continue
+            rv.append("{}: {}".format(k, v))
+        return "\n".join(rv)
+
     @property
     def author(self):
         rv = self.user_info['pypirc'].author
@@ -305,7 +339,6 @@ class PyPackage(object):
             rv = self.user_info['gitconfig'].author
         if rv is None:
             rv = get_author()
-        self.user_info['pypirc'].author = rv
         return rv
 
     @property
@@ -315,7 +348,6 @@ class PyPackage(object):
             rv = self.user_info['gitconfig'].author_email
         if rv is None:
             rv = get_author_email()
-        self.user_info['pypirc'].author_email = rv
         return rv
 
     @property
@@ -425,12 +457,31 @@ class PyPackage(object):
         # return self
 
     def build_license(self):
-        """Create you license file. Only supports MIT for now but only because I'm lazy,
-        not because I'm pushy, let me know what you need and I'll add it asap"""
-        rv = MIT.TEMPLATE.format(
+        """ Creates a license file by looking in your script for a
+         __license__ = 'something' line.. MIT is default
+
+         Supports:
+
+             APACHE-2
+             GPL-3
+             BSD-2
+             BSD-3
+             LGPL-2
+             LGPL-3
+             default: MIT
+             UNLICENSE
+         """
+
+        template = self.LICENSES.get(self.license, None)
+        if tempfile is None:
+            template = self.LICENSES['MIT']
+
+        rv = template.format(
+            name=self.name,
             author=self.author,
             year=str(datetime.datetime.now().year)
         )
+
         self.PACKAGE_FILES['license_md'] = rv
         with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
             f.writelines(rv)
@@ -532,6 +583,7 @@ class Builder:
         with dir_context(self.dists_folder):
             # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure the default pip or setuptools uses https _without_ needing to be upgraded first. Because if not, that makes twine the most secure way.
             if self.use_test_server:
+                # TODO: Move these logs into the cli as actual prompts
                 logger.info("To upload to the test server you need to first register your package.\n"
                             "Please enter you PyPi password when prompted.")
                 
