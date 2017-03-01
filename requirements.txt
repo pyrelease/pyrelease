@@ -1,2 +1,4 @@
 pyaml
 click
+restview
+twine
