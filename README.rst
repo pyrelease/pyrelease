@@ -9,17 +9,17 @@ regular PyPi servers.
 
 **Features**
 
- - CLI interface with setup wizard for creating packages interactively
- - Automatic readme creation with browser preview
- - Automatic entry-point script creation if file has main function
- - Automatic setup.py file creation
- - Automatically finds dependencies and creates a requirements.txt file.
- - Automatically detects and includes data folder
- - Automatic creation of package wheels and binaries
- - Uploads to PyPi *main* server OR *testing* server
- - Build steps are split into many stages allowing for
- - Preview you README.rst in rest view before commiting hooks at almost any point of the build.
- - Automatically add or pick from an assortment of Licenses
+- CLI interface with setup wizard for creating packages interactively
+- Automatic readme creation with browser preview
+- Automatic entry-point script creation if file has main function
+- Automatic setup.py file creation
+- Automatically finds dependencies and creates a requirements.txt file.
+- Automatically detects and includes data folder
+- Automatic creation of package wheels and binaries
+- Uploads to PyPi *main* server OR *testing* server
+- Build steps are split into many stages allowing for
+- Preview you README.rst in rest view before commiting hooks at almost any point of the build.
+- Automatically add or pick from an assortment of Licenses
 
 This doesn't cover everything, check out the code if you want to see more.
 
@@ -180,51 +180,53 @@ with anything absolutely please do so, either by pull request or email,
 whatever suits you.
 
 **Documentation**
- - frontpage
- - intro
- - quickstart
- - api
- - data
- - charts
- - graphs
- - pistachios
- - ...
- - *breaks chair
+
+- frontpage
+- intro
+- quickstart
+- api
+- data
+- charts
+- graphs
+- pistachios
+- ...
+- *breaks chair
 
 **Logging**
- - error messages should contain as much info as possible to help solve the problem. Include urls to documentation, etc..
+- error messages should contain as much info as possible to help solve the problem. Include urls to documentation, etc..
 
 **When to panic**
- - if there is a setup.py file (provide error message, only works for single files)
- - when package name already exists server sends 403 error
+- if there is a setup.py file (provide error message, only works for single files)
+- when package name already exists server sends 403 error
 
 **Core features**
- - Auto generate License file based on scraped info from configs and/or package file(s)
- - Generate change log from git info
- - Tag and release in git
- - Get version number from Pypi (if package exists ?)
- - Get info from git.
- - Check name against PyPi servers for collisions
- - Better support for modules contained within package
- (ie: /Mypackage/mypackage/\_\_init\_\_.py or /Mypackage/mypackage/mypackage.py
+- Auto generate License file based on scraped info from configs and/or package file(s)
+- Generate change log from git info
+- Tag and release in git
+- Get version number from Pypi (if package exists ?)
+- Get info from git.
+- Check name against PyPi servers for collisions
+- Better support for modules contained within package
+(ie: /Mypackage/mypackage/\_\_init\_\_.py or /Mypackage/mypackage/mypackage.py
 
 **Testing**
- - Make a test directory structure containing invalid build scenarios to test against.
- - Anything test related at all will be helpful.
+- Make a test directory structure containing invalid build scenarios to test against.
+- Anything test related at all will be helpful.
+
 
 Contributors
 ------------
 
 Illumi -
 
- - Creator
- - Programming
+- Creator
+- Programming
 
 Duroktar
 
- - Programming
- - Docs
- - This stinkin' ginormous readme ;)
+- Programming
+- Docs
+- This stinkin' ginormous readme ;)
 
 
 License
