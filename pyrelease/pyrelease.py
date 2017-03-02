@@ -267,7 +267,7 @@ class PyPackage(object):
 
     PACKAGE_FILES = {}
 
-    def __init__(self, path, build_dir='.', verbose=False):
+    def __init__(self, path, build_dir=None, verbose=False):
         self.verbose = verbose
         self.target_file = find_package(path)  # If package no good, PANIC
 
@@ -284,8 +284,6 @@ class PyPackage(object):
 
         self.package_info = get_package_info(
             self.name, self.package_dir)  # Show preview, cancel if no good
-
-        self.build_dir = tempfile.mkdtemp(dir=build_dir)
 
         self.is_single_file = os.path.isfile(self.target_file)
 
@@ -372,12 +370,11 @@ class Builder(object):
     }
     pypi_url = r"https://pypi.python.org/pypi"
     pypi_test_url = r"https://testpypi.python.org/pypi"
-    dists_folder = None
+    # dists_folder = None
 
-    def __init__(self, package, test=False):
+    def __init__(self, package, build_dir=None, test=False):
         self.package = package
         self.verbose = package.verbose
-        self.dists_folder = package.build_dir
         self.file_name = package.target_file + ".py"
 
         # Set True to upload to PyPi test server.
@@ -385,6 +382,13 @@ class Builder(object):
 
         # Mainly to keep track of Twine and setuptools error responses
         self.errors = []
+
+        # Where this stuff will end up.
+        if build_dir is None:
+            build_dir = os.path.join(
+                os.getcwd(), self.package.name + str(self.package.version))
+        self.build_dir = os.path.abspath(build_dir)
+        self.dists_folder = self.build_dir
 
     @property
     def worker_count(self):
@@ -401,11 +405,12 @@ class Builder(object):
             # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
             raise NotImplementedError('only single files supported')
 
-        copy_to_dir(self.package.target_file, self.package.build_dir)
+        copy_to_dir(self.package.target_file, self.build_dir)
 
     def make_all(self):
         """ Help method to just giver and build the whole thing"""
         # self.build_docs() # Broken
+        self.build_target_dir()
         self.build_readme()
         self.build_license()
         self.build_manifest()
@@ -415,12 +420,34 @@ class Builder(object):
         # TODO: Keep track of progress and report errors..
         return self.errors
 
-    def build_package(self):
+    def build_target_dir(self):
+        if os.path.exists(self.build_dir):
+            if "__" in self.build_dir[:-5]:
+                last = int(self.build_dir[-1])
+                last += 1
+                self.build_dir += "__%s" % last
+            else:
+                self.build_dir += "__1"
+        try:
+            os.mkdir(self.build_dir)
+        except OSError:
+            return False
+        else:
+            return self.build_dir
+
+    def build_package(self, count=1):
         """Copies the project file and data folders to the build destination"""
         if self.package.is_data_files:
+            if count == 10:
+                return "You should clean up some of those directories.."
             data_folder = os.path.join(self.package.package_dir, 'data')
-            dest = os.path.join(self.package.build_dir, 'data')
-            copy_dir(data_folder, dest)
+            dest = os.path.join(self.build_dir, 'data')
+            try:
+                copy_dir(data_folder, dest)
+            except FileExistsError:
+                new_dir = self.package.package_dir + "_%s" % count
+                self.package.package_dir = new_dir
+                self.build_package(count + 1)
         self.copy_files()
 
     def build_readme(self):
@@ -438,7 +465,7 @@ class Builder(object):
             license=self.package.license,
             license_name=self.package.license_name)
         self.package.PACKAGE_FILES['readme_rst'] = rv
-        with open(os.path.join(self.package.build_dir, "README.rst"), 'w') as f:
+        with open(os.path.join(self.build_dir, "README.rst"), 'w') as f:
             f.write(rv)
         return rv
 
@@ -447,7 +474,7 @@ class Builder(object):
         """Open a preview of your readme in restview."""
         if not self.package.PACKAGE_FILES['readme_rst']:
             self.build_readme()
-        with dir_context(self.package.build_dir):
+        with dir_context(self.build_dir):
             logger.info("Opening README.rst in restview. ")
             with ignore_stdout():
                 shell = subprocess.Popen(
@@ -462,7 +489,7 @@ class Builder(object):
             include_data_files=include_data_files,
             include_docs_folder=include_docs_folder)
         self.package.PACKAGE_FILES['manifest_in'] = rv
-        with open(os.path.join(self.package.build_dir, 'MANIFEST.in'), 'w') as f:
+        with open(os.path.join(self.build_dir, 'MANIFEST.in'), 'w') as f:
             f.write(rv)
 
     def build_setup(self):
@@ -498,7 +525,7 @@ class Builder(object):
             find_packages=self.package.find_packages,
             long_description=self.package.PACKAGE_FILES['readme_rst'], )
         self.package.PACKAGE_FILES['setup_py'] = rv
-        with open(os.path.join(self.package.build_dir, 'setup.py'), 'w') as f:
+        with open(os.path.join(self.build_dir, 'setup.py'), 'w') as f:
             f.write(rv)
 
     def build_license(self):
@@ -527,27 +554,27 @@ class Builder(object):
             year=str(datetime.datetime.now().year))
 
         self.package.PACKAGE_FILES['license_md'] = rv
-        with open(os.path.join(self.package.build_dir, "LICENSE.md"), 'w') as f:
+        with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
             f.writelines(rv)
 
     # TODO: Fix me :(
     # def build_docs(self):
     #     """Builds a pydoc API documention of your script in html"""
-    #     docs_folder = os.path.abspath(os.path.join(self.package.build_dir, 'docs'))
+    #     docs_folder = os.path.abspath(os.path.join(self.build_dir, 'docs'))
     #     if not os.path.exists(docs_folder):
     #         os.mkdir(docs_folder)
     #     mod = self.package.package_info['module']
     #     title = "{}: %s".format(self.package.name)
     #     html = pydoc.render_doc(mod, title)
     #     self.package.PACKAGE_FILES['license_md'] = html
-    #     with open(os.path.join(self.package.build_dir, 'docs', 'index.html'),
+    #     with open(os.path.join(self.build_dir, 'docs', 'index.html'),
     #               'w') as f:
     #         f.write(html)
 
     def build_requirements(self):
         """Writes the requirements.txt file"""
-        with open(os.path.join(self.package.build_dir, "requirements.txt"), 'w') as f:
-            f.writelines(self.package.requirements)
+        with open(os.path.join(self.build_dir, "requirements.txt"), 'w') as f:
+            f.write("\n".join([i for i in self.package.requirements]))
 
     def build_distros(self, suppress=False):
         """Builds out project distros, console output can be suppressed
@@ -628,6 +655,10 @@ class Builder(object):
             self.errors.append(msg)
         if response == 400:
             msg = "(%s) - Needs to upgrade version.." % response
+            logger.debug(msg)
+            self.errors.append(msg)
+        if response == 401:
+            msg = "(%s) - Invalid login credentials." % response
             logger.debug(msg)
             self.errors.append(msg)
 
@@ -726,7 +757,7 @@ def main(*args):
         state = "TEST server" if builder.use_test_server else "server"
         print("Thanks for using PyRelease, your completed files can be "
               "found in the %s directory, and on the PyPi %s" %
-              (package.build_dir, state))
+              (builder.build_dir, state))
     else:
         print("Build completed with errors..")
 

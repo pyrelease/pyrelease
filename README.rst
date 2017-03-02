@@ -22,9 +22,11 @@ regular PyPi servers.
 
 This doesn't cover everything, check out the code if you want to see more.
 
+
+
 Note: As of right now builds don't clean up after themselves, so you may
-have to clean up any old ones yourself. They have a random name and will be
-in the same folder as the package you're attempting to build.
+have to clean up any old ones yourself. They are tagged with the version
+and will be in the same folder as the package you're attempting to build.
 
 **DISCLAIMER:**
 
@@ -32,6 +34,14 @@ PyRelease is in alpha stage so if something doesn't seem to be working right, it
 probably isn't. Crashes are a great opportunity for a bug report so please don't
 hesitate to leave one, but take care to make it as detailed as possible so as to
 not pee in my cereal.
+
+
+**PyRelease uses these third party libraries**
+
+- Click_
+- restview_
+- twine_
+- pyyaml_
 
 
 Installation
@@ -71,6 +81,12 @@ To run, just cd to the folder of the your target python file and type::
 
     $ pyrelease-cli [target]
 
+
+or just::
+
+    $ pyrelease [path]
+
+
 There's an example script in the tests directory that gives a (poor) example of
 how it works::
 
@@ -78,14 +94,7 @@ how it works::
     $ pyrelease-cli trabconfig.py
 
 
-Running the old way
--------------------
-
-Once you have PyRelease installed in editable mode you can then run::
-
-    $ pyrelease [path]
-
-and PyRelease will attempt to package whatever file you point it to . You
+PyRelease will attempt to package whatever file you point it to . You
 can also use other targets like "." or a single python script (file) or
 `__init__.py` file.
 
@@ -97,11 +106,37 @@ the package name is `mypackage` and has a `main` function in the script,
 it can be run from the command line by typing `$ mypackage`, which will
 run whatever was in that `main` method.
 
-INFO: Honestly, just use the Command Line Interface version. This old way
-was just something I had set up while hacking around and will no doubt be
-changed or removed entirely. Although both sources offer a decent example
-of how the program works, the command line version lets you change settings
-dynamically and is just all around better.
+
+Giver Mode
+----------
+
+Cause sometime you just want it to hurry up and giver. The command line
+switch --giver or just -G activates it. Here's an example::
+
+    pyrelease --giver myscript.py
+
+
+Sometimes though when ya giver, ya wanna be just a little be careful, so
+there is a switch that sets the pypi test server as the destination, -T
+or --test-pypi. Or just giver, whatever fills your boots.
+
+
+Show All Console Messages
+-------------------------
+
+By default you won't see any of the scroll that normally occurs when you
+invoke setuptools or twine or the webbrowser loader. You can turn these
+messages on with the -V or --verbose switch. If you're experiencing trouble
+this may help you determine the cause.
+
+
+Logging
+-------
+
+If you experience any problems you can always check the error.log that will
+be in the same directory that you originally ran pyrelease. It clears after
+every session so if you want to save one or submit it you should change the
+name or move it to another location.
 
 
 Pro-Tip
@@ -120,18 +155,22 @@ out just run::
 
     $ pyrelease-cli trabconfig.py
 
-or the old way..
+or::
 
     $ pyrelease trabconfig.py
 
 Make sure you run it from inside `tests/my_test_package` . The finished
-files will be found in a randomly named folder in the same directory as
-the file. It should include README.rst, LICENSE.md, MANIFEST.in, and
-setup.py files, as well as copied over everything in the `data` folder
+files are saved by default into a folder tagged with the version and name
+of the package. It should include README.rst, LICENSE.md, MANIFEST.in,
+and setup.py files, as well as copied over everything in the `data` folder
 (if there was one). PyRelease also creates a log file containing all the
 steps you made up to, and -hopefully- including the error. The file will
-be named `debug.log` and found in the same directory as you ran `pyrelease`
-from. **Note:** This log clears at the start of each run so save any logs
+be named `error.log` and found in the current working directory.
+For example, a file named my_script.py version 0.8.5 will produce a folder
+named `/my_script0.8.5`.
+
+
+**Note:** This log clears at the start of each run so save any logs
 you want to preserve as another file name. I intend to implement a rotating
 file handler for the logger, but I've just been so busy writing out this
 giant f^%&ing readme file I haven't got around to it yet ;)
@@ -140,6 +179,7 @@ Oh that's another thing, if this happens to help you in any way, consider
 contributing back by helping with the todo list down there, or even help
 by submitting any bugs or suggestion that might come your way. It's all
 appreciated.
+
 
 
 Things to know
@@ -184,31 +224,32 @@ whatever suits you.
 - intro
 - quickstart
 - api
-- data
-- charts
-- graphs
-- pistachios
-- ...
-- *breaks chair
+
 
 **Logging**
+
 - error messages should contain as much info as possible to help solve the problem. Include urls to documentation, etc..
 
+
 **When to panic**
+
 - if there is a setup.py file (provide error message, only works for single files)
 - when package name already exists server sends 403 error
 
+
 **Core features**
+
 - Auto generate License file based on scraped info from configs and/or package file(s)
 - Generate change log from git info
 - Tag and release in git
 - Get version number from Pypi (if package exists ?)
 - Get info from git.
 - Check name against PyPi servers for collisions
-- Better support for modules contained within package
-(ie: /Mypackage/mypackage/\_\_init\_\_.py or /Mypackage/mypackage/mypackage.py
+- Better support for modules contained within package (ie: /Mypackage/mypackage/\_\_init\_\_.py or /Mypackage/mypackage/mypackage.py
+
 
 **Testing**
+
 - Make a test directory structure containing invalid build scenarios to test against.
 - Anything test related at all will be helpful.
 
@@ -231,3 +272,9 @@ Duroktar
 License
 -------
 MIT - 2017 illume
+
+
+.. _Click: http://click.pocoo.org/5/
+.. _restview: https://mg.pov.lt/restview/
+.. _twine: https://pypi.python.org/pypi/twine
+.. _pyyaml: https://github.com/yaml/pyyaml

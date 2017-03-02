@@ -90,6 +90,7 @@ class Generator(object):
         self.text(" ")
 
     def print_footer(self):
+        self.text(" ")
         self.title("PyRelease")
         self.green_text("Thanks for using PyRelease! If you have any suggestions please let us know "
                         "either on GitHUb or by e-mail.")
@@ -108,6 +109,10 @@ def giver_mode(builder, g):
     """When ya just wanna plow through it. Maybe it's because you're a pro
      at this or maybe you just don't care, giver."""
     import random
+
+    if not os.path.exists(builder.build_dir):
+        builder.build_target_dir()
+
     message = [
         "Preparing data",
         "Reticulating splines",
@@ -116,8 +121,9 @@ def giver_mode(builder, g):
 
     ]
     msg = random.choice(message)
-    with click.progressbar(length=builder.worker_count + 1,
+    with click.progressbar(length=builder.worker_count,
                            label=msg) as bar:
+        bar.update(1)
         builder.build_readme()
         bar.update(1)
         builder.build_license()
@@ -135,6 +141,18 @@ def giver_mode(builder, g):
         g.green_text("Done.")
         g.text(" ")
         return builder.errors
+
+
+def view_on_pypi(g, builder, package, URLS):
+    g.text(" ")
+    g.text("Here, have a look at your new package on PyPi.")
+    g.text(" ")
+    if builder.use_test_server:
+        click.launch(URLS['test_pypi'] + package.name)
+    else:
+        click.launch(URLS['pypi'] + package.name)
+    g.text(" ")
+    click.pause()
 
 
 def register_package(g, builder):
@@ -167,12 +185,18 @@ def register_package(g, builder):
 @click.command()
 @click.option('-G', '--giver', is_flag=True,
               help="Enable this to just giver and build the whole thing in one go.")
-@click.option('-T', '--test_pypi', is_flag=True,
+@click.option('-T', '--test-pypi', is_flag=True,
               help="Upload to the PyPi test site.")
 @click.option('-V', '--verbose', is_flag=True,
               help="Enable to view Twine output.")
-@click.argument('project', type=click.Path(exists=True, file_okay=True, resolve_path=True))
-def release(project, giver, test_pypi, verbose):
+@click.option('-T', '-t', '--target', default=None,
+              help="This is folder your package will be saved to.",
+              type=click.Path(exists=False, file_okay=False, writable=True,
+                              resolve_path=True, allow_dash=True))
+@click.argument('project', default=".",
+                type=click.Path(exists=True, file_okay=True,
+                                resolve_path=True))
+def release(project, giver, test_pypi, verbose, target):
     """Releasing python code - an experiment in zero config releases.
 
     Pyrelease gathers info for package, fills out necessary files, builds,
@@ -186,7 +210,7 @@ def release(project, giver, test_pypi, verbose):
     g.cls()
     # ------------------------------------Giver mode
     if giver:
-        builder = Builder(package)
+        builder = Builder(package, build_dir=target)
         builder.use_test_server = test_pypi
         g.print_header()
         g.red_text("   Giver Mode %s" % ("", "TEST SERVER")[test_pypi])
@@ -220,7 +244,6 @@ def release(project, giver, test_pypi, verbose):
         exit()
     #################################
 
-    builder = Builder(package, test=test_pypi)
 
     g.text(' ')
     g.title("PyRelease wizard")
@@ -272,8 +295,8 @@ def release(project, giver, test_pypi, verbose):
     # Verify project name
     g.text(" ")
     package.name = g.prompt("Release name:", package.name,
-                            "Is %s the name you want to go with for your release?"
-                            "We try to get this based on the name of the file or "
+                            "Is %s the name you want to go with for your release? "
+                            "We try to guess it based on the name of the file or "
                             "directory you ran PyRelease in so it's not always what "
                             "you may want. If you want, you can rename you script "
                             "and next time you run PyRelease it will automatically "
@@ -294,7 +317,8 @@ def release(project, giver, test_pypi, verbose):
     # Authors name
     g.text(" ")
     package.author = g.prompt("Author: ", package.author,
-                              "Your name shows up in a few places in the release.")
+                              "Your name as you want it to appear in the documentation "
+                              "for your release.")
 
     # Authors e-mail
     g.text(" ")
@@ -308,13 +332,13 @@ def release(project, giver, test_pypi, verbose):
             g.text(" ")
             g.red_text(dep)
     g.text(" ")
-    g.text("PyRelease has analyzed %s and has found these dependancies.")
+    g.text("PyRelease has analyzed %s and has found these dependancies." % package.name)
     list_dependencies()
 
     g.text(" ")
     add_deps = g.prompt("Add dependencies to list? ", False,
-                        "You can continue or append more dependencies to the list. You can't "
-                        "however delete entries, this will be implemented soon.")
+                        "You can append more dependencies to the list. You can't however "
+                        "delete entries, this will probably be implemented in the future.")
     if add_deps:
         g.text(" ")
         while 1:
@@ -327,6 +351,12 @@ def release(project, giver, test_pypi, verbose):
             confirm = g.prompt("Is this correct?" % package.requirements, True)
             if confirm:
                 break
+
+    # Load up the Builder.
+    g.text(" ")
+    g.green_text("Loading builder.")
+    builder = Builder(package, build_dir=target)
+    g.text(" ")
 
     # Verify License
     _license = package.package_info['license']
@@ -353,7 +383,6 @@ def release(project, giver, test_pypi, verbose):
                                 "the name exactly how you see it.")
         package.set_license(_license)
 
-    g.text(" ")
     g.red_text("Using license: %s" % package.license)
     # g.text(" ")
     # build_docs = g.prompt("Make pydoc help page? ", True,
@@ -362,28 +391,23 @@ def release(project, giver, test_pypi, verbose):
 
     # Set build directory
     g.text(" ")
-    build_dir = g.prompt("Build directory", package.build_dir,
+    build_dir = g.prompt("Build directory", builder.build_dir,
                          "You can specify a directory that you would like your "
                          "package to be created in. Otherwise a default temp "
                          "folder will be made automatically in the current working "
                          "directory")
-    package.build_dir = os.path.abspath(build_dir)
+    builder.build_dir = os.path.abspath(build_dir)
 
     # --------------------------------------Build all packages.
     # TODO: Fix error reporting on this part and put some hooks between the calls
     g.text(" ")
-    # g.green_text("Pyrelease is ready to build your package.")
-    # g.red_text("Pyrelease is ready to build your package.")
-    # g.yellow_text("Pyrelease is ready to build your package.")
-
-    g.text(" ")
-    g.green_text("Loading builder.")
-    builder = Builder(package)
-    g.text(" ")
     g.cyan_text("Pyrelease is ready to build your package.")
     g.text(" ")
     click.pause()
+
+    # k, giver
     giver_mode(builder, g)
+
     # g.cyan_text("Building README.rst")
     # builder.build_readme()
     # g.green_text("Complete.")
@@ -422,21 +446,17 @@ def release(project, giver, test_pypi, verbose):
                 "file for more details.")
     else:
         g.green_text("Build completed successfully!")
-        # g.text(" ")
-        # g.text("Have a look at your new package.")
-        # # click.pause()
-        # g.text(" ")
-        # click.launch(os.path.abspath(package.build_dir))
-        # click.pause()
-    g.text(" ")
+
 
     # Preview README.rst
+    g.text(" ")
     preview_readme = g.prompt("Preview README.rst file? ", True,
                               "You can preview your auto-generated README.rst file now "
                               "if you'd like. This will open up your default browser to "
                               "a preview of the file. When you're ready to proceed again, "
                               "come back to the termianl and press enter, which will end "
                               "the browser session (but won't close the tab)")
+    g.text(" ")
     if preview_readme:
         shell_session = builder.preview_readme()
 
@@ -464,7 +484,7 @@ def release(project, giver, test_pypi, verbose):
 
     g.text(" ")
     g.yellow_text("Have a look at your new package.")
-    click.launch(os.path.abspath(package.build_dir))
+    click.launch(os.path.abspath(builder.build_dir))
 
     # Upload files
     g.text(" ")
@@ -504,20 +524,10 @@ def release(project, giver, test_pypi, verbose):
         if upload:
             builder.use_test_server = False
             builder.upload_to_pypi()
+            g.text(" ")
             view_on_pypi(g, builder, package, URLS)
 
-    click.pause()
     g.print_footer()
-
-
-def view_on_pypi(g, builder, package, URLS):
-    g.text(" ")
-    g.text("Here, have a look at your new package on PyPi.")
-    if builder.use_test_server:
-        click.launch(URLS['test_pypi'] + package.name)
-    else:
-        click.launch(URLS['pypi'] + package.name)
-    click.pause()
 
 
 main = release
