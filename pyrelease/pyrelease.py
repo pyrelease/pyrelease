@@ -23,21 +23,6 @@ from .compat import input, devnull
 logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
 
-# File handler
-# handler = logging.FileHandler(os.path.join(os.getcwd(), 'build.log'), 'w')
-# handler.setLevel(logging.INFO)
-# formatter = logging.Formatter(
-#     '%(message)s')
-# handler.setFormatter(formatter)
-# logger.addHandler(handler)
-
-# Stream handler
-# s_handler = logging.StreamHandler()
-# s_handler.setLevel(logging.DEBUG)
-# s_formatter = logging.Formatter('%(message)s')
-# s_handler.setFormatter(s_formatter)
-# logger.addHandler(s_handler)
-
 
 def find_package(target):
     """ Returns the absolute path to the package file.
@@ -245,7 +230,9 @@ def get_dependencies(target):
      """
     # TODO: Make this look for a requirements.tx file also
     # TODO: Get more popular conversions.
-    conversions = dict(yaml='pyyaml')
+    conversions = dict(
+        yaml='pyyaml'
+    )
     module = ast.parse(open(target).read())
     deps = []
     for node in module.body:
@@ -398,18 +385,14 @@ class PyPackage(object):
 
     # TODO: This could probably go somewhere else.
     def preview_readme(self):
-        """Open a preview of your readme in restview.
-        """
+        """Open a preview of your readme in restview."""
         if not self.PACKAGE_FILES['readme_rst']:
             self.build_readme()
         with dir_context(self.build_dir):
-            # input("Press enter to view a preview of your README.rst file. When you're done, press enter again.")
             logger.info("Opening README.rst in restview. ")
             with ignore_stdout():
                 shell = subprocess.Popen(
                     "restview README.rst".split(" "), stdout=devnull)
-            # input()
-            # shell.kill()
             return shell
 
     def build_manifest(self):
@@ -422,7 +405,6 @@ class PyPackage(object):
         self.PACKAGE_FILES['manifest_in'] = rv
         with open(os.path.join(self.build_dir, 'MANIFEST.in'), 'w') as f:
             f.write(rv)
-        # return self
 
     def build_setup(self):
         """Build out the setup.py file for the release."""
@@ -459,7 +441,6 @@ class PyPackage(object):
         self.PACKAGE_FILES['setup_py'] = rv
         with open(os.path.join(self.build_dir, 'setup.py'), 'w') as f:
             f.write(rv)
-        # return self
 
     def build_license(self):
         """ Creates a license file by looking in your script for a
@@ -489,7 +470,6 @@ class PyPackage(object):
         self.PACKAGE_FILES['license_md'] = rv
         with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
             f.writelines(rv)
-        # return self
 
     def build_docs(self):
         """Builds a pydoc API documention of your script in html"""
@@ -503,13 +483,11 @@ class PyPackage(object):
         with open(os.path.join(self.build_dir, 'docs', 'index.html'),
                   'w') as f:
             f.write(html)
-        # return self
 
     def build_requirements(self):
         """Writes the requirements.txt file"""
         with open(os.path.join(self.build_dir, "requirements.txt"), 'w') as f:
             f.writelines(self.requirements)
-        # return self
 
     def copy_files(self):
         """Copies our package files into the new output folder.
@@ -519,7 +497,6 @@ class PyPackage(object):
             raise NotImplementedError('only single files supported')
 
         copy_to_dir(self.target_file, self.build_dir)
-        # return self
 
     def build_all(self):
         """ Help method to just giver and build the whole thing"""
@@ -579,45 +556,38 @@ class Builder:
         """Uploads package to PyPi using twine.
         The advantage to using Twine is your package is uploaded
         over HTTPS which prevents your private info from appearing
-        in the request header.
+        in the request header. (Apparently setuptools uploads over
+        https now as well, so find out more about that.
         """
         if not os.path.exists(os.path.expanduser('~/.pypirc')):
-            print(
-                "No .pypirc file found. You must create one if you want to upload to Pypi. Please refer to https://docs.python.org/2/distutils/packageindex.html#pypirc for more info."
-            )
-            print(
-                "No .pypirc found. Aborting. Please see https://docs.python.org/2/distutils/packageindex.html#pypirc for more info"
+            logger.warning(
+                "No .pypirc found. Please see "
+                "https://docs.python.org/2/distutils/packageindex.html#pypirc "
+                "for more info."
             )
             self.errors = True
             return
-        with dir_context(self.dists_folder):
-            # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure the default pip or setuptools uses https _without_ needing to be upgraded first. Because if not, that makes twine the most secure way.
-            if self.use_test_server:
-                # TODO: Move these logs into the cli as actual prompts
-                logger.info(
-                    "To upload to the test server you need to first register your package.\n"
-                    "Please enter you PyPi password when prompted.")
 
-                register_test_site = "python setup.py register -r https://testpypi.python.org/pypi",  # FOR PYPI TEST SITE
-                execute_shell_command(register_test_site, suppress=show_output)
-                logger.info("Done")
+        with dir_context(self.dists_folder):
+            # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure ...
+            # the default pip or setuptools uses https _without_ needing to be
+            # upgraded first. Because if not, that makes twine the most secure
+            # way.
+            if self.use_test_server:
+
+                cmd = "python setup.py register -r https://testpypi.python.org/pypi"
+                execute_shell_command(cmd, suppress=show_output)
 
                 logger.info("Uploading Project to the Pypi TESTING server..")
                 response = execute_shell_command(
                     "twine upload dist/* -r testpypi", suppress=show_output)
                 logger.info(
                     "Project has been uploaded to the Pypi TESTING server!")
-                logger.info(
-                    "You can now install with the command\n"
-                    "$ pip install -i https://testpypi.python.org/pypi %s",
-                    self.package.name)
             else:
                 logger.info("Uploading Project to the Pypi server..")
                 response = execute_shell_command(
                     "twine upload dist/*", suppress=show_output)
                 logger.info("Project has been uploaded to the Pypi server!")
-                logger.info("You can now install with the command\n"
-                            "$ pip install %s", self.package.name)
 
             # TODO: This needs to be better..
             if response == 127:
@@ -649,7 +619,7 @@ class Builder:
 def main():
     """ Main entry point for now until I get the click interface working.
      Please use the logger and not print in this file, screen prints will
-     all be done from the cli and I don't want the logger to inerfere if
+     all be done from the cli and I don't want the logger to interfere if
      I can help it."""
     args = sys.argv
 

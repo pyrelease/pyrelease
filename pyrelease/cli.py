@@ -117,8 +117,8 @@ def release(project, giver):
     g.text(' ')
     g.title("PyRelease wizard")
     g.green_text("This wizard will help guide you through setting up %s "
-                "for release on pypi. Don't worry, it's easy! "
-                "Press ctrl-c at any time to exit to the terminal" % package.name)
+                 "for release on pypi. Don't worry, it's easy! "
+                 "Press ctrl-c at any time to exit to the terminal" % package.name)
 
     # Check for a .pypirc file. It's required to upload to pypi.
     g.text(' ')
@@ -167,6 +167,17 @@ def release(project, giver):
     package.author_email = g.prompt("E-mail: ", package.author_email,
                                     "Leaving an e-mail gives people who use your package a way to "
                                     "reach you with feedback and support.")
+
+    # Package short description
+    g.text(" ")
+    package.description = g.prompt("Short Description:", package.description,
+                                   "PyPackage tries to automatically fill the package "
+                                   "description based on the first doc-string found "
+                                   "in the target module. Sometimes this doesn't "
+                                   "always turn out right, so here's your chance to "
+                                   "fix it. This is the same description that will "
+                                   "show on the PyPi package index so try and make "
+                                   "it as short and descriptive as possible.")
 
     # Verify requirements
     def list_dependencies():
