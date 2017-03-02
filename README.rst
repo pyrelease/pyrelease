@@ -1,5 +1,5 @@
-PyRelease -Alpha
-================
+PyRelease -Alpha-
+=================
 
 A simple single file package builder. Automatically creates all the files
 required for a basic PyPi package and uploads to either the test or the
@@ -10,16 +10,15 @@ regular PyPi servers.
 **Features**
 
 - CLI interface with setup wizard for creating packages interactively
-- Automatic readme creation with browser preview
+- Automatically creates a Github and PyPi compatible readme file with browser preview
 - Automatic entry-point script creation if file has main function
 - Automatic setup.py file creation
-- Automatically finds dependencies and creates a requirements.txt file.
 - Automatically detects and includes data folder
-- Automatic creation of package wheels and binaries
-- Uploads to PyPi *main* server OR *testing* server
-- Build steps are split into many stages allowing for
-- Preview you README.rst in rest view before commiting hooks at almost any point of the build.
 - Automatically add or pick from an assortment of Licenses
+- Automatically finds dependencies and creates a requirements.txt file.
+- Automatic creation of package wheels and binaries
+- Build steps are split into many stages allowing for custom hooks at almost any point of the build.
+- Uploads to PyPi *main* server OR *testing* server
 
 This doesn't cover everything, check out the code if you want to see more.
 
@@ -34,9 +33,9 @@ probably isn't. Crashes are a great opportunity for a bug report so please don't
 hesitate to leave one, but take care to make it as detailed as possible so as to
 not pee in my cereal.
 
+
 Installation
 ------------
-
 
 Download Package from github, unzip into a directory and open up the
 terminal. From the same directory that you unzipped the files run::
@@ -64,6 +63,7 @@ have a ~/.pypirc file with these sections::
     repository = https://pypi.python.org/pypi
     username = *PyPi Username*          # Enter your PyPi username here
 
+
 Command-Line-Interface
 ----------------------
 
@@ -84,7 +84,6 @@ Running the old way
 Once you have PyRelease installed in editable mode you can then run::
 
     $ pyrelease [path]
-
 
 and PyRelease will attempt to package whatever file you point it to . You
 can also use other targets like "." or a single python script (file) or
@@ -226,7 +225,7 @@ Duroktar
 
 - Programming
 - Docs
-- This stinkin' ginormous readme ;)
+- This stinkin' ginormous readme
 
 
 License
