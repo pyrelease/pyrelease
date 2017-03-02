@@ -14,8 +14,8 @@ TEMPLATE = """\
 {description}
 
 
-* {license_name}: {license}
 * Documentation: {url}
+* License: {license}
 
 
 Installation

@@ -11,16 +11,17 @@ import pydoc
 import tempfile
 from shutil import copy as copy_to_dir
 from shutil import copytree as copy_dir
+from distutils.version import LooseVersion
 
 from .userdata import PyPiRc, GitConfig, HgRc
 from .templates import readme_rst, manifest_in, setup_py
 from .shelltools import execute_shell_command, ignore_stdout, dir_context
 from .licenses import MIT, UNLICENSE, APACHE_2, GPL_3, BSD_2, BSD_3, LGPL_2, LGPL_3
-from .compat import input
+from .compat import input, devnull
 
 # ######## LOGGING #########
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
+logger = logging.getLogger('pyrelease')
+logger.setLevel(logging.DEBUG)
 
 # File handler
 # handler = logging.FileHandler(os.path.join(os.getcwd(), 'build.log'), 'w')
@@ -49,16 +50,19 @@ def find_package(target):
 
     This detects single file packages, and packages with __init__.py in them.
     """
-    class InvalidPackage(Exception): pass
 
-    class InvalidPackageName(Exception): pass
+    class InvalidPackage(Exception):
+        pass
+
+    class InvalidPackageName(Exception):
+        pass
 
     if not os.path.exists(target):
         raise InvalidPackage("Must enter a valid path.")
 
     if target.endswith('.py') and os.path.isfile(target):
         if "-" in target:
-            raise InvalidPackageName("Filename cannot contain dashes." )
+            raise InvalidPackageName("Filename cannot contain dashes.")
         # Single file package, just what we want.
         logger.info("Single file target found (%s)", target)
         return os.path.abspath(target)
@@ -98,8 +102,8 @@ def get_user_info():
      if they exist and returns them as a dict."""
     rv = {
         "gitconfig": GitConfig(),
-        "pypirc":    PyPiRc(),
-        "hgrc":      HgRc()
+        "pypirc": PyPiRc(),
+        # "hgrc":      HgRc()
     }
     return rv
 
@@ -115,6 +119,8 @@ def get_version(py_file):
                 logger.info("Version found - %s -", str(version))
                 return version
     return False
+
+
 #         try:
 #             versions = subprocess.check_output('git tag --sort version:refname'.split())
 #         except subprocess.CalledProcessError as e:
@@ -151,7 +157,7 @@ def get_license(target):
                 #     pprint.pprint(resp)
                 #     print(resp['identifiers']['text'])
                 #     input()
-    # logger.warning("Still no license string :/")
+            # logger.warning("Still no license string :/")
     return None
 
 
@@ -164,7 +170,8 @@ def get_package_info(name, package_dir):
     try:
         mod = __import__(name)
     except Exception as e:
-        logger.error("Error importing module build_docs function (%s)", exc_info=True)
+        logger.error(
+            "Error importing module build_docs function (%s)", exc_info=True)
     else:
         entry = mod.__dict__[mod.__all__[0]]
         description = ""
@@ -176,24 +183,25 @@ def get_package_info(name, package_dir):
             module=mod,
             license=_license,
             license_name=_license,
-            description=description
-        )
+            description=description)
         return rv
 
 
-def get_author():
-    """Fallback for getting author name when no config files are found. Should be Github username"""
-    return input("Enter the name of the author, this should be your github user name: ")
+def get_author(package):
+    rv = package.user_info['pypirc'].author
+    if rv is None:
+        rv = package.user_info['gitconfig'].author
+    return rv
 
 
-def get_author_email():
-    """Fallback for getting user email address when no config files are found."""
-    return input("Enter e-mail to show on the readme: ")
+def get_author_email(package):
+    rv = package.user_info['gitconfig'].author_email
+    return rv
 
 
 def version_from_git():
     # TODO: Implement me!
-    return "0.5.5"
+    raise NotImplementedError
 
 
 def get_name(path):
@@ -237,9 +245,7 @@ def get_dependencies(target):
      """
     # TODO: Make this look for a requirements.tx file also
     # TODO: Get more popular conversions.
-    conversions = dict(
-        yaml='pyyaml'
-    )
+    conversions = dict(yaml='pyyaml')
     module = ast.parse(open(target).read())
     deps = []
     for node in module.body:
@@ -273,11 +279,11 @@ class PyPackage(object):
      """
     LICENSES = {
         'APACHE-2': APACHE_2.TEMPLATE,
-        'GPL-3': GPL_3,
-        'BSD-2': BSD_2,
-        'BSD-3': BSD_3,
-        'LGPL-2': LGPL_2,
-        'LGPL-3': LGPL_3,
+        'GPL-3': GPL_3.TEMPLATE,
+        'BSD-2': BSD_2.TEMPLATE,
+        'BSD-3': BSD_3.TEMPLATE,
+        'LGPL-2': LGPL_2.TEMPLATE,
+        'LGPL-3': LGPL_3.TEMPLATE,
         'MIT': MIT.TEMPLATE,
         'UNLICENSE': UNLICENSE.TEMPLATE,
     }
@@ -285,15 +291,21 @@ class PyPackage(object):
     PACKAGE_FILES = {}
 
     def __init__(self, path, build_dir='.'):
-        self.target_file = find_package(path)                                    # If package no good, PANIC
+        self.target_file = find_package(path)  # If package no good, PANIC
 
         self.name = get_name(self.target_file)
 
-        self.package_dir = os.path.abspath(os.path.dirname(self.target_file))    # Absolute dir of package
+        self.package_dir = os.path.abspath(
+            os.path.dirname(self.target_file))  # Absolute dir of package
 
-        self.user_info = get_user_info()                                         # Log each step and ensure is valid
+        self.user_info = get_user_info()  # Log each step and ensure is valid
 
-        self.package_info = get_package_info(self.name, self.package_dir)              # Show preview, cancel if no good
+        self.author = get_author(self)
+
+        self.author_email = get_author_email(self)
+
+        self.package_info = get_package_info(
+            self.name, self.package_dir)  # Show preview, cancel if no good
 
         self.build_dir = tempfile.mkdtemp(dir=build_dir)
 
@@ -309,12 +321,21 @@ class PyPackage(object):
 
         self.long_description = self.build_readme()
 
+        self.errors = None
+
     def set_license(self, value):
         try:
             self.package_info['license'] = value
         except (KeyError, ValueError) as e:
-            logger.error("There was an error setting the License.", exc_info=True)
+            logger.error(
+                "There was an error setting the License.", exc_info=True)
 
+    def set_version(self, new_version):
+        if LooseVersion(new_version) >= LooseVersion(self.version):
+            self.version = new_version
+            return True
+        else:
+            return None
 
     def jsonize(self):
         rv = {}
@@ -331,24 +352,6 @@ class PyPackage(object):
                 continue
             rv.append("{}: {}".format(k, v))
         return "\n".join(rv)
-
-    @property
-    def author(self):
-        rv = self.user_info['pypirc'].author
-        if rv is None:
-            rv = self.user_info['gitconfig'].author
-        if rv is None:
-            rv = get_author()
-        return rv
-
-    @property
-    def author_email(self):
-        rv = self.user_info['pypirc'].author_email
-        if rv is None:
-            rv = self.user_info['gitconfig'].author_email
-        if rv is None:
-            rv = get_author_email()
-        return rv
 
     @property
     def description(self):
@@ -387,8 +390,7 @@ class PyPackage(object):
             find_packages=self.find_packages,
             # TODO License should return a dict, with `name` and `text` as keys
             license=self.license,
-            license_name=self.license_name
-        )
+            license_name=self.license_name)
         self.PACKAGE_FILES['readme_rst'] = rv
         with open(os.path.join(self.build_dir, "README.rst"), 'w') as f:
             f.write(rv)
@@ -401,19 +403,22 @@ class PyPackage(object):
         if not self.PACKAGE_FILES['readme_rst']:
             self.build_readme()
         with dir_context(self.build_dir):
-            input("Press enter to view a preview of your README.rst file. When you're done, press enter again.")
+            # input("Press enter to view a preview of your README.rst file. When you're done, press enter again.")
             logger.info("Opening README.rst in restview. ")
             with ignore_stdout():
-                shell = subprocess.Popen("restview README.rst".split(" "))
-            input()
-            shell.kill()
+                shell = subprocess.Popen(
+                    "restview README.rst".split(" "), stdout=devnull)
+            # input()
+            # shell.kill()
+            return shell
 
     def build_manifest(self):
         """Fills in your releases MANIFEST.in file """
         include_data_files = 'recursive-include data *' if self.is_data_files else ''
         include_docs_folder = 'include docs/*'
-        rv = manifest_in.TEMPLATE.format(include_data_files=include_data_files,
-                                         include_docs_folder=include_docs_folder)
+        rv = manifest_in.TEMPLATE.format(
+            include_data_files=include_data_files,
+            include_docs_folder=include_docs_folder)
         self.PACKAGE_FILES['manifest_in'] = rv
         with open(os.path.join(self.build_dir, 'MANIFEST.in'), 'w') as f:
             f.write(rv)
@@ -422,7 +427,8 @@ class PyPackage(object):
     def build_setup(self):
         """Build out the setup.py file for the release."""
         if self.is_script:
-            console_scripts = setup_py.CONSOLE_SCRIPTS.format(self.name, self.name)
+            console_scripts = setup_py.CONSOLE_SCRIPTS.format(self.name,
+                                                              self.name)
         else:
             console_scripts = ''
 
@@ -449,8 +455,7 @@ class PyPackage(object):
             packages=packages,
             py_modules=py_modules,
             find_packages=self.find_packages,
-            long_description=self.long_description,
-        )
+            long_description=self.long_description, )
         self.PACKAGE_FILES['setup_py'] = rv
         with open(os.path.join(self.build_dir, 'setup.py'), 'w') as f:
             f.write(rv)
@@ -473,14 +478,13 @@ class PyPackage(object):
          """
 
         template = self.LICENSES.get(self.license, None)
-        if tempfile is None:
+        if template is None:
             template = self.LICENSES['MIT']
 
         rv = template.format(
             name=self.name,
             author=self.author,
-            year=str(datetime.datetime.now().year)
-        )
+            year=str(datetime.datetime.now().year))
 
         self.PACKAGE_FILES['license_md'] = rv
         with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
@@ -489,14 +493,15 @@ class PyPackage(object):
 
     def build_docs(self):
         """Builds a pydoc API documention of your script in html"""
-        docs_folder = os.path.join(self.build_dir, 'docs')
+        docs_folder = os.path.abspath(os.path.join(self.build_dir, 'docs'))
         if not os.path.exists(docs_folder):
             os.mkdir(docs_folder)
         mod = self.package_info['module']
         title = "{}: %s".format(self.name)
-        html = pydoc.render_doc(mod, title, pydoc.html)
+        html = pydoc.render_doc(mod, title)
         self.PACKAGE_FILES['license_md'] = html
-        with open(os.path.join(self.build_dir, 'docs', 'index.html'), 'w') as f:
+        with open(os.path.join(self.build_dir, 'docs', 'index.html'),
+                  'w') as f:
             f.write(html)
         # return self
 
@@ -518,12 +523,15 @@ class PyPackage(object):
 
     def build_all(self):
         """ Help method to just giver and build the whole thing"""
-        self.build_docs()
+        # self.build_docs()
         self.build_readme()
         self.build_license()
         self.build_manifest()
         self.build_requirements()
         self.build_setup()
+        # TODO: Keep track of progress and report errors..
+        self.errors = False
+        return self.errors
 
     def create_package(self):
         """Copies the project file and data folders to the build destination"""
@@ -541,12 +549,10 @@ class Builder:
     indicating there was an error.
     """
 
-    default_commands = {
-        "builds": [
-            "python setup.py sdist",
-            "python setup.py bdist_wheel --universal",
-        ]
-    }
+    default_commands = dict(builds=[
+        "python setup.py sdist",
+        "python setup.py bdist_wheel --universal",
+    ])
     dists_folder = None
     errors = None
 
@@ -558,7 +564,7 @@ class Builder:
         # Set True to upload to PyPi test server.
         self.use_test_server = test
 
-    def build(self, show_output=False):
+    def build(self, suppress=False):
         """Builds out project distros, console output can be suppressed
          by setting show_output to True.
          """
@@ -566,7 +572,7 @@ class Builder:
             for cmd in self.commands:
                 # TODO: This needs to be better. Not enough info on the build.
                 logger.info("Executing command - %s", str(cmd))
-                execute_shell_command(cmd, suppress=show_output)
+                execute_shell_command(cmd, suppress=suppress)
                 logger.info("Done.")
 
     def upload(self, show_output=False):
@@ -576,29 +582,39 @@ class Builder:
         in the request header.
         """
         if not os.path.exists(os.path.expanduser('~/.pypirc')):
-            print("No .pypirc file found. You must create one if you want to upload to Pypi. Please refer to https://docs.python.org/2/distutils/packageindex.html#pypirc for more info.")
-            print("No .pypirc found. Aborting. Please see https://docs.python.org/2/distutils/packageindex.html#pypirc for more info")
+            print(
+                "No .pypirc file found. You must create one if you want to upload to Pypi. Please refer to https://docs.python.org/2/distutils/packageindex.html#pypirc for more info."
+            )
+            print(
+                "No .pypirc found. Aborting. Please see https://docs.python.org/2/distutils/packageindex.html#pypirc for more info"
+            )
             self.errors = True
             return
         with dir_context(self.dists_folder):
             # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure the default pip or setuptools uses https _without_ needing to be upgraded first. Because if not, that makes twine the most secure way.
             if self.use_test_server:
                 # TODO: Move these logs into the cli as actual prompts
-                logger.info("To upload to the test server you need to first register your package.\n"
-                            "Please enter you PyPi password when prompted.")
-                
+                logger.info(
+                    "To upload to the test server you need to first register your package.\n"
+                    "Please enter you PyPi password when prompted.")
+
                 register_test_site = "python setup.py register -r https://testpypi.python.org/pypi",  # FOR PYPI TEST SITE
                 execute_shell_command(register_test_site, suppress=show_output)
                 logger.info("Done")
 
                 logger.info("Uploading Project to the Pypi TESTING server..")
-                response = execute_shell_command("twine upload dist/* -r testpypi", suppress=show_output)
-                logger.info("Project has been uploaded to the Pypi TESTING server!")
-                logger.info("You can now install with the command\n"
-                            "$ pip install -i https://testpypi.python.org/pypi %s", self.package.name)
+                response = execute_shell_command(
+                    "twine upload dist/* -r testpypi", suppress=show_output)
+                logger.info(
+                    "Project has been uploaded to the Pypi TESTING server!")
+                logger.info(
+                    "You can now install with the command\n"
+                    "$ pip install -i https://testpypi.python.org/pypi %s",
+                    self.package.name)
             else:
                 logger.info("Uploading Project to the Pypi server..")
-                response = execute_shell_command("twine upload dist/*", suppress=show_output)
+                response = execute_shell_command(
+                    "twine upload dist/*", suppress=show_output)
                 logger.info("Project has been uploaded to the Pypi server!")
                 logger.info("You can now install with the command\n"
                             "$ pip install %s", self.package.name)
@@ -624,6 +640,7 @@ class Builder:
         if self.errors is None:
             return False
         return not self.errors
+
 
 ########################################################################
 ########################################################################
@@ -669,7 +686,9 @@ def main():
 
     # ------------------------------------------------- Build commands
 
-    input("Press enter to continue on to the build stage. Or press ctrl-c to exit.")
+    input(
+        "Press enter to continue on to the build stage. Or press ctrl-c to exit."
+    )
 
     # Test means upload to test site ore not.
     builder = Builder(package, test=True)
@@ -678,14 +697,16 @@ def main():
     # show_output turns on console output
     # for the various setup.py build commands
     # and any pypi upload commands.
-    builder.build(show_output=True)
+    builder.build(suppress=True)
     print("Package built")
 
     if builder.use_test_server:
         print("PyPi server is set to TESTING server.")
     else:
         print("PyPi server is set to NORMAL server.")
-    input("Press enter to continue on to the upload step. Or press ctrl-c to exit.")
+    input(
+        "Press enter to continue on to the upload step. Or press ctrl-c to exit."
+    )
     # There is an input sentinal that will allow you to
     # Exit before any attempt to upload is made.
     builder.upload()
@@ -693,9 +714,11 @@ def main():
         print("Package up-loaded successfully.")
         state = "TEST server" if builder.use_test_server else "server"
         print("Thanks for using PyRelease, your completed files can be "
-              "found in the %s directory, and on the PyPi %s" % (package.build_dir, state))
+              "found in the %s directory, and on the PyPi %s" %
+              (package.build_dir, state))
     else:
         print("Build completed with errors..")
+
+
 if __name__ == '__main__':
     main()
-

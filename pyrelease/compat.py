@@ -1,5 +1,5 @@
+import os
 import sys
-
 
 PY2 = sys.version_info[0] == 2
 
@@ -22,8 +22,12 @@ if PY2:
             else:
                 return rv
 
+    devnull = open(os.devnull, 'w')
 
 else:
     from configparser import ConfigParser
+    from subprocess import DEVNULL
 
     input = input
+
+    devnull = DEVNULL
