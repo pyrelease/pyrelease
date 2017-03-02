@@ -9,22 +9,30 @@ regular PyPi servers.
 
 **Features**
 
- - Automatic readme creation
- - Automatic entry-point script creation
+ - CLI interface with setup wizard for creating packages interactively
+ - Automatic readme creation with browser preview
+ - Automatic entry-point script creation if file has main function
  - Automatic setup.py file creation
+ - Automatically finds dependencies and creates a requirements.txt file.
+ - Automatically detects and includes data folder
  - Automatic creation of package wheels and binaries
  - Uploads to PyPi *main* server OR *testing* server
- - Automatically detects and includes data folder
- - Automatic pydoc, API documentation creation
  - Build steps are split into many stages allowing for
  - Preview you README.rst in rest view before commiting hooks at almost any point of the build.
- - Adds MIT license automatically (soon to be more)
+ - Automatically add or pick from an assortment of Licenses
 
 This doesn't cover everything, check out the code if you want to see more.
 
 Note: As of right now builds don't clean up after themselves, so you may
 have to clean up any old ones yourself. They have a random name and will be
 in the same folder as the package you're attempting to build.
+
+**DISCLAIMER:**
+
+PyRelease is in alpha stage so if something doesn't seem to be working right, it
+probably isn't. Crashes are a great opportunity for a bug report so please don't
+hesitate to leave one, but take care to make it as detailed as possible so as to
+not pee in my cereal.
 
 Installation
 ------------
