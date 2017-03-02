@@ -5,16 +5,16 @@ PY2 = sys.version_info[0] == 2
 
 
 if PY2:
-    from ConfigParser import ConfigParser as _ConfigParser, NoOptionError
+    from ConfigParser import ConfigParser as _ConfigParser, NoOptionError, NoSectionError
 
     input = raw_input
 
     _UNSET = object()
     class ConfigParser(_ConfigParser):
-        def get(self, section, option, fallback=_UNSET):
+        def get(self, section, option, raw=None, vars=False, fallback=_UNSET):
             try:
-                rv = _ConfigParser.get(section, option)
-            except NoOptionError:
+                rv = _ConfigParser().get(section, option)
+            except (NoOptionError, NoSectionError):
                 if fallback is _UNSET:
                     raise
                 else:
