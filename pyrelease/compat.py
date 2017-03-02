@@ -10,7 +10,15 @@ if PY2:
     input = raw_input
 
     _UNSET = object()
-    class ConfigParser(_ConfigParser):
+
+    class CompatParser(_ConfigParser):
+        """The sole purpose of this is to work around the fact that
+         I'm lazy and still haven't changed the user data classes
+         into dicts()
+
+         ConfigParser doesn't have a default/fallback argument
+         in Python 2 and I mainly work in Python 3 so I threw this
+         hack together for the py2.7 users"""
         def get(self, section, option, fallback=_UNSET):
             try:
                 rv = _ConfigParser.get(section, option)
@@ -22,7 +30,9 @@ if PY2:
             else:
                 return rv
 
-    devnull = open(os.devnull, 'w')
+    ConfigParser = CompatParser
+
+    devnull = os.open(os.devnull, os.O_WRONLY)
 
 else:
     from configparser import ConfigParser
@@ -31,3 +41,5 @@ else:
     input = input
 
     devnull = DEVNULL
+
+    ConfigParser = ConfigParser

@@ -264,20 +264,11 @@ class PyPackage(object):
      Currently .gitconfig, .hgrc, and .pypirc files are supported, but more
      can easily be added should the need arise.
      """
-    LICENSES = {
-        'APACHE-2': APACHE_2.TEMPLATE,
-        'GPL-3': GPL_3.TEMPLATE,
-        'BSD-2': BSD_2.TEMPLATE,
-        'BSD-3': BSD_3.TEMPLATE,
-        'LGPL-2': LGPL_2.TEMPLATE,
-        'LGPL-3': LGPL_3.TEMPLATE,
-        'MIT': MIT.TEMPLATE,
-        'UNLICENSE': UNLICENSE.TEMPLATE,
-    }
 
     PACKAGE_FILES = {}
 
-    def __init__(self, path, build_dir='.'):
+    def __init__(self, path, build_dir='.', verbose=False):
+        self.verbose = verbose
         self.target_file = find_package(path)  # If package no good, PANIC
 
         self.name = get_name(self.target_file)
@@ -306,7 +297,7 @@ class PyPackage(object):
 
         self.find_packages = "" if self.is_single_file else ", find_packages"
 
-        self.long_description = self.build_readme()
+        self.description = self.package_info['description']
 
         self.errors = None
 
@@ -324,6 +315,22 @@ class PyPackage(object):
         else:
             return None
 
+    @property
+    def is_data_files(self):
+        return os.path.exists(os.path.join(self.package_dir, 'data'))
+
+    @property
+    def license(self):
+        return self.package_info['license']
+
+    @property
+    def license_name(self):
+        return self.package_info['license_name']
+
+    @property
+    def url(self):
+        return 'https://pypi.python.org/pypi/' + self.name
+
     def jsonize(self):
         rv = {}
         for k, v in self.__dict__.items():
@@ -340,55 +347,107 @@ class PyPackage(object):
             rv.append("{}: {}".format(k, v))
         return "\n".join(rv)
 
-    @property
-    def description(self):
-        return self.package_info['description']
+
+class Builder(object):
+    """Builds pypackage project and uploads to PyPi.
+
+    Errors during build will set the self.errors switch to True
+    indicating there was an error.
+    """
+
+    default_commands = dict(builds=[
+        "python setup.py sdist",
+        "python setup.py bdist_wheel --universal",
+    ])
+
+    LICENSES = {
+        'APACHE-2': APACHE_2.TEMPLATE,
+        'GPL-3': GPL_3.TEMPLATE,
+        'BSD-2': BSD_2.TEMPLATE,
+        'BSD-3': BSD_3.TEMPLATE,
+        'LGPL-2': LGPL_2.TEMPLATE,
+        'LGPL-3': LGPL_3.TEMPLATE,
+        'MIT': MIT.TEMPLATE,
+        'UNLICENSE': UNLICENSE.TEMPLATE,
+    }
+    pypi_url = r"https://pypi.python.org/pypi"
+    pypi_test_url = r"https://testpypi.python.org/pypi"
+    dists_folder = None
+
+    def __init__(self, package, test=False):
+        self.package = package
+        self.verbose = package.verbose
+        self.dists_folder = package.build_dir
+        self.file_name = package.target_file + ".py"
+
+        # Set True to upload to PyPi test server.
+        self.use_test_server = test
+
+        # Mainly to keep track of Twine and setuptools error responses
+        self.errors = []
 
     @property
-    def license(self):
-        return self.package_info['license']
+    def worker_count(self):
+        return len(self.workers)
 
     @property
-    def license_name(self):
-        return self.package_info['license_name']
+    def workers(self):
+        return [i for i in self.__dict__.keys() if i.startswith("build_")]
 
-    @property
-    def url(self):
-        return 'https://pypi.python.org/pypi/' + self.name
+    def copy_files(self):
+        """Copies our package files into the new output folder.
+        """
+        if not self.package.is_single_file:
+            # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
+            raise NotImplementedError('only single files supported')
 
-    @property
-    def is_data_files(self):
-        return os.path.exists(os.path.join(self.package_dir, 'data'))
+        copy_to_dir(self.package.target_file, self.package.build_dir)
 
-    @property
-    def readme(self):
-        return self.long_description
+    def make_all(self):
+        """ Help method to just giver and build the whole thing"""
+        # self.build_docs() # Broken
+        self.build_readme()
+        self.build_license()
+        self.build_manifest()
+        self.build_requirements()
+        self.build_setup()
+        self.build_package()
+        # TODO: Keep track of progress and report errors..
+        return self.errors
+
+    def build_package(self):
+        """Copies the project file and data folders to the build destination"""
+        if self.package.is_data_files:
+            data_folder = os.path.join(self.package.package_dir, 'data')
+            dest = os.path.join(self.package.build_dir, 'data')
+            copy_dir(data_folder, dest)
+        self.copy_files()
 
     def build_readme(self):
         """Builds your projects README.rst file from a template."""
         rv = readme_rst.TEMPLATE.format(
-            name=self.name,
-            description=self.description,
-            author_email=self.author_email,
-            author=self.author,
-            version=self.version,
-            url=self.url,
-            is_script=self.is_script,
-            find_packages=self.find_packages,
+            name=self.package.name,
+            description=self.package.description,
+            author_email=self.package.author_email,
+            author=self.package.author,
+            version=self.package.version,
+            url=self.package.url,
+            is_script=self.package.is_script,
+            find_packages=self.package.find_packages,
             # TODO License should return a dict, with `name` and `text` as keys
-            license=self.license,
-            license_name=self.license_name)
-        self.PACKAGE_FILES['readme_rst'] = rv
-        with open(os.path.join(self.build_dir, "README.rst"), 'w') as f:
+            license=self.package.license,
+            license_name=self.package.license_name)
+        self.package.PACKAGE_FILES['readme_rst'] = rv
+        with open(os.path.join(self.package.build_dir, "README.rst"), 'w') as f:
             f.write(rv)
         return rv
 
     # TODO: This could probably go somewhere else.
     def preview_readme(self):
         """Open a preview of your readme in restview."""
-        if not self.PACKAGE_FILES['readme_rst']:
+        if not self.package.PACKAGE_FILES['readme_rst']:
             self.build_readme()
-        with dir_context(self.build_dir):
+        with dir_context(self.package.build_dir):
             logger.info("Opening README.rst in restview. ")
             with ignore_stdout():
                 shell = subprocess.Popen(
@@ -397,49 +456,49 @@ class PyPackage(object):
 
     def build_manifest(self):
         """Fills in your releases MANIFEST.in file """
-        include_data_files = 'recursive-include data *' if self.is_data_files else ''
+        include_data_files = 'recursive-include data *' if self.package.is_data_files else ''
         include_docs_folder = 'include docs/*'
         rv = manifest_in.TEMPLATE.format(
             include_data_files=include_data_files,
             include_docs_folder=include_docs_folder)
-        self.PACKAGE_FILES['manifest_in'] = rv
-        with open(os.path.join(self.build_dir, 'MANIFEST.in'), 'w') as f:
+        self.package.PACKAGE_FILES['manifest_in'] = rv
+        with open(os.path.join(self.package.build_dir, 'MANIFEST.in'), 'w') as f:
             f.write(rv)
 
     def build_setup(self):
         """Build out the setup.py file for the release."""
-        if self.is_script:
-            console_scripts = setup_py.CONSOLE_SCRIPTS.format(self.name,
-                                                              self.name)
+        if self.package.is_script:
+            console_scripts = setup_py.CONSOLE_SCRIPTS.format(self.package.name,
+                                                              self.package.name)
         else:
             console_scripts = ''
 
-        if self.is_single_file:
-            py_modules = "py_modules=['%s']," % self.name
+        if self.package.is_single_file:
+            py_modules = "py_modules=['%s']," % self.package.name
             packages = ''
         else:
             raise NotImplementedError('only single files supported')
             # py_modules = ''
             # packages = "packages=find_packages(exclude=['contrib', 'docs', 'tests']),"
 
-        install_requires = "install_requires=%s," % repr(self.requirements)
+        install_requires = "install_requires=%s," % repr(self.package.requirements)
 
         rv = setup_py.TEMPLATE.format(
-            url=self.url,
-            name=self.name,
-            version=self.version,
-            license=self.license,
-            description=self.description,
-            author=self.author,
-            author_email=self.author_email,
+            url=self.package.url,
+            name=self.package.name,
+            version=self.package.version,
+            license=self.package.license,
+            description=self.package.description,
+            author=self.package.author,
+            author_email=self.package.author_email,
             console_scripts=console_scripts,
             install_requires=install_requires,
             packages=packages,
             py_modules=py_modules,
-            find_packages=self.find_packages,
-            long_description=self.long_description, )
-        self.PACKAGE_FILES['setup_py'] = rv
-        with open(os.path.join(self.build_dir, 'setup.py'), 'w') as f:
+            find_packages=self.package.find_packages,
+            long_description=self.package.PACKAGE_FILES['readme_rst'], )
+        self.package.PACKAGE_FILES['setup_py'] = rv
+        with open(os.path.join(self.package.build_dir, 'setup.py'), 'w') as f:
             f.write(rv)
 
     def build_license(self):
@@ -458,93 +517,43 @@ class PyPackage(object):
              UNLICENSE
          """
 
-        template = self.LICENSES.get(self.license, None)
+        template = self.LICENSES.get(self.package.license, None)
         if template is None:
             template = self.LICENSES['MIT']
 
         rv = template.format(
-            name=self.name,
-            author=self.author,
+            name=self.package.name,
+            author=self.package.author,
             year=str(datetime.datetime.now().year))
 
-        self.PACKAGE_FILES['license_md'] = rv
-        with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
+        self.package.PACKAGE_FILES['license_md'] = rv
+        with open(os.path.join(self.package.build_dir, "LICENSE.md"), 'w') as f:
             f.writelines(rv)
 
-    def build_docs(self):
-        """Builds a pydoc API documention of your script in html"""
-        docs_folder = os.path.abspath(os.path.join(self.build_dir, 'docs'))
-        if not os.path.exists(docs_folder):
-            os.mkdir(docs_folder)
-        mod = self.package_info['module']
-        title = "{}: %s".format(self.name)
-        html = pydoc.render_doc(mod, title)
-        self.PACKAGE_FILES['license_md'] = html
-        with open(os.path.join(self.build_dir, 'docs', 'index.html'),
-                  'w') as f:
-            f.write(html)
+    # TODO: Fix me :(
+    # def build_docs(self):
+    #     """Builds a pydoc API documention of your script in html"""
+    #     docs_folder = os.path.abspath(os.path.join(self.package.build_dir, 'docs'))
+    #     if not os.path.exists(docs_folder):
+    #         os.mkdir(docs_folder)
+    #     mod = self.package.package_info['module']
+    #     title = "{}: %s".format(self.package.name)
+    #     html = pydoc.render_doc(mod, title)
+    #     self.package.PACKAGE_FILES['license_md'] = html
+    #     with open(os.path.join(self.package.build_dir, 'docs', 'index.html'),
+    #               'w') as f:
+    #         f.write(html)
 
     def build_requirements(self):
         """Writes the requirements.txt file"""
-        with open(os.path.join(self.build_dir, "requirements.txt"), 'w') as f:
-            f.writelines(self.requirements)
+        with open(os.path.join(self.package.build_dir, "requirements.txt"), 'w') as f:
+            f.writelines(self.package.requirements)
 
-    def copy_files(self):
-        """Copies our package files into the new output folder.
-        """
-        if not self.is_single_file:
-            # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
-            raise NotImplementedError('only single files supported')
-
-        copy_to_dir(self.target_file, self.build_dir)
-
-    def build_all(self):
-        """ Help method to just giver and build the whole thing"""
-        # self.build_docs()
-        self.build_readme()
-        self.build_license()
-        self.build_manifest()
-        self.build_requirements()
-        self.build_setup()
-        # TODO: Keep track of progress and report errors..
-        self.errors = False
-        return self.errors
-
-    def create_package(self):
-        """Copies the project file and data folders to the build destination"""
-        if self.is_data_files:
-            data_folder = os.path.join(self.package_dir, 'data')
-            dest = os.path.join(self.build_dir, 'data')
-            copy_dir(data_folder, dest)
-        self.copy_files()
-
-
-class Builder:
-    """Builds pypackage project and uploads to PyPi.
-
-    Errors during build will set the self.errors switch to True
-    indicating there was an error.
-    """
-
-    default_commands = dict(builds=[
-        "python setup.py sdist",
-        "python setup.py bdist_wheel --universal",
-    ])
-    dists_folder = None
-    errors = None
-
-    def __init__(self, package, test=False):
-        self.package = package
-        self.dists_folder = package.build_dir
-        self.file_name = package.target_file + ".py"
-
-        # Set True to upload to PyPi test server.
-        self.use_test_server = test
-
-    def build(self, suppress=False):
+    def build_distros(self, suppress=False):
         """Builds out project distros, console output can be suppressed
          by setting show_output to True.
          """
+        suppress = suppress or self.verbose
         with dir_context(self.dists_folder):
             for cmd in self.commands:
                 # TODO: This needs to be better. Not enough info on the build.
@@ -552,47 +561,75 @@ class Builder:
                 execute_shell_command(cmd, suppress=suppress)
                 logger.info("Done.")
 
-    def upload(self, show_output=False):
+    def upload_to_pypi(self, suppress=False):
         """Uploads package to PyPi using twine.
         The advantage to using Twine is your package is uploaded
         over HTTPS which prevents your private info from appearing
         in the request header. (Apparently setuptools uploads over
         https now as well, so find out more about that.
         """
+        # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure ...
+        # the default pip or setuptools uses https _without_ needing to be
+        # upgraded first. Because if not, that makes twine the most secure
+        # way.
+        suppress = suppress or self.verbose
         if not os.path.exists(os.path.expanduser('~/.pypirc')):
-            logger.warning(
+            msg = (
                 "No .pypirc found. Please see "
                 "https://docs.python.org/2/distutils/packageindex.html#pypirc "
                 "for more info."
             )
-            self.errors = True
+            logger.warning(msg)
+            self.errors.append(msg)
             return
-
+        logger.info("Uploading Project to the Pypi server..")
         with dir_context(self.dists_folder):
-            # TODO: This doesn't need to be twine anymore. ALTHOUGH, make sure ...
-            # the default pip or setuptools uses https _without_ needing to be
-            # upgraded first. Because if not, that makes twine the most secure
-            # way.
-            if self.use_test_server:
+            response = execute_shell_command(
+                "twine upload dist/*", suppress=suppress)
+            logger.info("Project has been uploaded to the Pypi server!")
+            logger.debug("Result: %s", repr(response))
+            self.parse_response(response)
+        return response
 
-                cmd = "python setup.py register -r https://testpypi.python.org/pypi"
-                execute_shell_command(cmd, suppress=show_output)
+    def register_pypi_test_package(self, suppress=False):
+        """Registers your package with the PyPi test site. This step doesn't
+         seem to be necessary for the regular PyPi site though..
+         """
+        # TODO: Needs research.. See docstring.
+        suppress = suppress or self.verbose
+        with dir_context(self.dists_folder):
+            logger.info("Uploading Project to the Pypi TESTING server..")
+            cmd = "python setup.py register -r %s" % self.pypi_test_url
+            response = execute_shell_command(cmd, suppress=suppress)
+            self.parse_response(response)
+        return response
 
-                logger.info("Uploading Project to the Pypi TESTING server..")
-                response = execute_shell_command(
-                    "twine upload dist/* -r testpypi", suppress=show_output)
-                logger.info(
-                    "Project has been uploaded to the Pypi TESTING server!")
-            else:
-                logger.info("Uploading Project to the Pypi server..")
-                response = execute_shell_command(
-                    "twine upload dist/*", suppress=show_output)
-                logger.info("Project has been uploaded to the Pypi server!")
-
+    def upload_to_pypi_test_site(self, suppress=False):
+        """Uploads your package to the PyPi repository allowing others
+        to download easily with pip"""
+        suppress = suppress or self.verbose
+        with dir_context(self.dists_folder):
+            logger.info("Uploading Project to the Pypi TESTING server..")
+            response = execute_shell_command(
+                "twine upload dist/* -r testpypi", suppress=suppress)
+            logger.info(
+                "Project has been uploaded to the Pypi TESTING server!")
+            logger.debug("Result: %s", repr(response))
             # TODO: This needs to be better..
-            if response == 127:
-                logger.info("Twine not installed.. Cancelled.")
-                self.errors = True
+            self.parse_response(response)
+        return response
+
+    def parse_response(self, response):
+        """Trying some things out to handle shell errors better while
+         calling Twine.."""
+        if response == 127:
+            msg = "(%s) - Twine not installed.. Cancelled." % response
+            logger.info(msg)
+            self.errors.append(msg)
+        if response == 400:
+            msg = "(%s) - Needs to upgrade version.." % response
+            logger.debug(msg)
+            self.errors.append(msg)
 
     @property
     def commands(self):
@@ -616,58 +653,62 @@ class Builder:
 ########################################################################
 
 
-def main():
+def main(*args):
     """ Main entry point for now until I get the click interface working.
      Please use the logger and not print in this file, screen prints will
      all be done from the cli and I don't want the logger to interfere if
      I can help it."""
+    from .cli import main
+
+    main(*args)
+
     args = sys.argv
 
     # --------------------------------------------- Package creation
 
     package = PyPackage(args[1])
-    print("Package loaded, making files.")
-
-    package.build_docs()
-    print("index.html built")
-
-    package.build_readme()
-    print("readme.rst built")
-
-    package.build_license()
-    print("LICENSE.md built")
-
-    package.build_manifest()
-    print("manifest.in built")
-
-    package.build_requirements()
-    print("requirements.txt built")
-
-    package.build_setup()
-    print("setup.py file built")
-
-    print("Previewing in browser.")
-    package.preview_readme()
-    # ------------------------------------------------
-
-    # Create the package for the Builder.F
-    package.create_package()
-    print("Package created")
-
-    # ------------------------------------------------- Build commands
+    print("Package loaded.")
 
     input(
         "Press enter to continue on to the build stage. Or press ctrl-c to exit."
     )
+    builder = Builder(package, test=True)
 
     # Test means upload to test site ore not.
-    builder = Builder(package, test=True)
     print("Builder loaded")
+
+    builder.build_docs()
+    print("index.html built")
+
+    builder.build_readme()
+    print("readme.rst built")
+
+    builder.build_license()
+    print("LICENSE.md built")
+
+    builder.build_manifest()
+    print("manifest.in built")
+
+    builder.build_requirements()
+    print("requirements.txt built")
+
+    builder.build_setup()
+    print("setup.py file built")
+
+    print("Previewing in browser.")
+    builder.preview_readme()
+    # ------------------------------------------------
+
+    # Create the package for the Builder.F
+    builder.build_package()
+    print("Package created")
+
+    # ------------------------------------------------- Build commands
 
     # show_output turns on console output
     # for the various setup.py build commands
     # and any pypi upload commands.
-    builder.build(suppress=True)
+    builder.build_distros(suppress=True)
     print("Package built")
 
     if builder.use_test_server:
@@ -679,7 +720,7 @@ def main():
     )
     # There is an input sentinal that will allow you to
     # Exit before any attempt to upload is made.
-    builder.upload()
+    builder.upload_to_pypi()
     if builder.success:
         print("Package up-loaded successfully.")
         state = "TEST server" if builder.use_test_server else "server"
