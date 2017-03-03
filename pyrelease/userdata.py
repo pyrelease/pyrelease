@@ -1,3 +1,4 @@
+# coding=utf-8
 from __future__ import print_function, absolute_import
 import os
 import logging
@@ -7,8 +8,8 @@ from .compat import ConfigParser
 
 logger = logging.getLogger('pyrelease')
 
-
 # TODO: Really, really gotta make these functions that return dicts.. But I'm soooo lazy
+
 
 class UserConfigMixin(object):
     def __str__(self):
@@ -36,6 +37,7 @@ class PyPiRc(UserConfigMixin):
     author_email = myemail@example.com
 
     """
+
     def __init__(self):
         parser = ConfigParser()
         self.author = None
@@ -55,6 +57,7 @@ class GitConfig(UserConfigMixin):
             email = myemail@example.com
 
     """
+
     def __init__(self):
         self.author = None
         self.author_email = None
@@ -73,6 +76,7 @@ class HgRc(UserConfigMixin):
     [ui]
     username = My Name Is <myemail@example.com>
     """
+
     def __init__(self):
         self.author = None
         self.author_email = None
@@ -99,6 +103,7 @@ class DotGitConfig(UserConfigMixin):
         url = git@github.com:pygame/solarwolf.git
 
     """
+
     def __init__(self):
         """
         """

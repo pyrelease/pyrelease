@@ -1,3 +1,4 @@
+# coding=utf-8
 from __future__ import print_function, absolute_import
 import os
 import sys
@@ -7,13 +8,11 @@ import imp
 import datetime
 import subprocess
 import logging
-import pydoc
-import tempfile
 from shutil import copy as copy_to_dir
 from shutil import copytree as copy_dir
 from distutils.version import LooseVersion
 
-from .userdata import PyPiRc, GitConfig, HgRc
+from .userdata import PyPiRc, GitConfig
 from .templates import readme_rst, manifest_in, setup_py
 from .shelltools import execute_shell_command, ignore_stdout, dir_context
 from .licenses import MIT, UNLICENSE, APACHE_2, GPL_3, BSD_2, BSD_3, LGPL_2, LGPL_3
@@ -43,6 +42,7 @@ def find_package(target):
         pass
 
     if not os.path.exists(target):
+        logger.error("Target path not valid with pyrelease (%s)", target)
         raise InvalidPackage("Must enter a valid path.")
 
     if target.endswith('.py') and os.path.isfile(target):
@@ -90,6 +90,7 @@ def get_user_info():
         "pypirc": PyPiRc(),
         # "hgrc":      HgRc()
     }
+    logger.info("Got user info (%s)", str(rv))
     return rv
 
 
@@ -103,6 +104,7 @@ def get_version(py_file):
                 version = re.search(VERSION_REGEX, line).group()
                 logger.info("Version found - %s -", str(version))
                 return version
+    logger.warning("No version found in - %s -", py_file)
     return False
 
 
@@ -129,6 +131,7 @@ def get_license(target):
             line = line.strip()
             if line.startswith("__license__"):
                 license_match = line[14:].replace('"', '').replace("'", "")
+                logger.info("License line found in - %s -", py_file)
                 return license_match
                 # TODO: Fix me :(
                 # if license_match.upper() == 'MIT':
@@ -143,6 +146,7 @@ def get_license(target):
                 #     print(resp['identifiers']['text'])
                 #     input()
             # logger.warning("Still no license string :/")
+    logger.warning("No license line found in - %s -", py_file)
     return None
 
 
@@ -153,6 +157,7 @@ def get_package_info(name, package_dir):
      """
     sys.path.insert(0, package_dir)
     try:
+        logger.info("Importing module - %s -", name)
         mod = __import__(name)
     except Exception as e:
         logger.error(
@@ -169,6 +174,7 @@ def get_package_info(name, package_dir):
             license=_license,
             license_name=_license,
             description=description)
+        logger.info("Get package info returned: %s", str(rv))
         return rv
 
 
@@ -176,11 +182,13 @@ def get_author(package):
     rv = package.user_info['pypirc'].author
     if rv is None:
         rv = package.user_info['gitconfig'].author
+    logger.info("Get author function returned: %s", str(rv))
     return rv
 
 
 def get_author_email(package):
     rv = package.user_info['gitconfig'].author_email
+    logger.info("Get author email function returned: %s", str(rv))
     return rv
 
 
@@ -201,10 +209,14 @@ def get_name(path):
         exit()
     logger.info("Target: %s", path)
     if path.endswith('.py'):
-        return os.path.split(path)[-1].rstrip('.py')
+        rv = os.path.split(path)[-1].rstrip('.py')
+        logger.info("get_name found a name from a *.py file: %s", str(rv))
+        return rv
 
     if os.path.isdir(path):
-        return os.path.split(os.path.abspath(path))[-1]
+        rv = os.path.split(os.path.abspath(path))[-1]
+        logger.info("get_name found a directory for the result: %s", str(rv))
+        return rv
 
 
 def has_main_func(target):
@@ -213,8 +225,10 @@ def has_main_func(target):
      """
     with open(target, 'r') as f:
         if 'def main' in f.read():
+            logger.info("Package has a main function.")
             return True
         else:
+            logger.info("Package does not have a main function.")
             return False
 
 
@@ -230,9 +244,7 @@ def get_dependencies(target):
      """
     # TODO: Make this look for a requirements.tx file also
     # TODO: Get more popular conversions.
-    conversions = dict(
-        yaml='pyyaml'
-    )
+    conversions = dict(yaml='pyyaml')
     module = ast.parse(open(target).read())
     deps = []
     for node in module.body:
@@ -302,6 +314,7 @@ class PyPackage(object):
     def set_license(self, value):
         try:
             self.package_info['license'] = value
+            logger.info("License set to: %s", value)
         except (KeyError, ValueError) as e:
             logger.error(
                 "There was an error setting the License.", exc_info=True)
@@ -309,8 +322,10 @@ class PyPackage(object):
     def set_version(self, new_version):
         if LooseVersion(new_version) >= LooseVersion(self.version):
             self.version = new_version
+            logger.info("Version set to: %s", new_version)
             return True
         else:
+            logger.warning("Version not in valid range: %s", new_version)
             return None
 
     @property
@@ -370,6 +385,7 @@ class Builder(object):
     }
     pypi_url = r"https://pypi.python.org/pypi"
     pypi_test_url = r"https://testpypi.python.org/pypi"
+
     # dists_folder = None
 
     def __init__(self, package, build_dir=None, test=False):
@@ -388,7 +404,10 @@ class Builder(object):
             build_dir = os.path.join(
                 os.getcwd(), self.package.name + str(self.package.version))
         self.build_dir = os.path.abspath(build_dir)
-        self.dists_folder = self.build_dir
+
+    @property
+    def dists_folder(self):
+        return self.build_dir
 
     @property
     def worker_count(self):
@@ -402,14 +421,16 @@ class Builder(object):
         """Copies our package files into the new output folder.
         """
         if not self.package.is_single_file:
+            logger.error("Package is more than one file.")
             # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
             raise NotImplementedError('only single files supported')
-
+        logger.info("%s folder is being copied to %s", self.package.target_file, self.build_dir)
         copy_to_dir(self.package.target_file, self.build_dir)
 
     def make_all(self):
         """ Help method to just giver and build the whole thing"""
         # self.build_docs() # Broken
+        logger.info("Running make_all")
         self.build_target_dir()
         self.build_readme()
         self.build_license()
@@ -418,6 +439,7 @@ class Builder(object):
         self.build_setup()
         self.build_package()
         # TODO: Keep track of progress and report errors..
+        logger.info("Finished running make_all.")
         return self.errors
 
     def build_target_dir(self):
@@ -425,26 +447,33 @@ class Builder(object):
             if "__" in self.build_dir[:-5]:
                 last = int(self.build_dir[-1])
                 last += 1
+                logger.debug("%s time through build_target_dir. Build dir - (%s)", (str(last), self.build_dir))
                 self.build_dir += "__%s" % last
             else:
+                logger.debug("First time through build_target_dir.")
                 self.build_dir += "__1"
         try:
+            logger.info("Creating dir - (%s)", self.build_dir)
             os.mkdir(self.build_dir)
         except OSError:
             return False
         else:
+            logger.info("Crerated dir - (%s) - successfully", self.build_dir)
             return self.build_dir
 
     def build_package(self, count=1):
         """Copies the project file and data folders to the build destination"""
         if self.package.is_data_files:
+            logger.info("Found data files.")
             if count == 10:
                 return "You should clean up some of those directories.."
             data_folder = os.path.join(self.package.package_dir, 'data')
             dest = os.path.join(self.build_dir, 'data')
             try:
                 copy_dir(data_folder, dest)
+                logger.info("Copying: (%s) - To: (%s)", data_folder, dest)
             except FileExistsError:
+                logger.error("File exists error in build_package: (%s)", exc_info=True)
                 new_dir = self.package.package_dir + "_%s" % count
                 self.package.package_dir = new_dir
                 self.build_package(count + 1)
@@ -467,6 +496,7 @@ class Builder(object):
         self.package.PACKAGE_FILES['readme_rst'] = rv
         with open(os.path.join(self.build_dir, "README.rst"), 'w') as f:
             f.write(rv)
+            logger.info("Readme built..")
         return rv
 
     # TODO: This could probably go somewhere else.
@@ -491,12 +521,13 @@ class Builder(object):
         self.package.PACKAGE_FILES['manifest_in'] = rv
         with open(os.path.join(self.build_dir, 'MANIFEST.in'), 'w') as f:
             f.write(rv)
+        logger.info("MANIFEST built..")
 
     def build_setup(self):
         """Build out the setup.py file for the release."""
         if self.package.is_script:
-            console_scripts = setup_py.CONSOLE_SCRIPTS.format(self.package.name,
-                                                              self.package.name)
+            console_scripts = setup_py.CONSOLE_SCRIPTS.format(
+                self.package.name, self.package.name)
         else:
             console_scripts = ''
 
@@ -508,7 +539,8 @@ class Builder(object):
             # py_modules = ''
             # packages = "packages=find_packages(exclude=['contrib', 'docs', 'tests']),"
 
-        install_requires = "install_requires=%s," % repr(self.package.requirements)
+        install_requires = "install_requires=%s," % repr(
+            self.package.requirements)
 
         rv = setup_py.TEMPLATE.format(
             url=self.package.url,
@@ -527,6 +559,7 @@ class Builder(object):
         self.package.PACKAGE_FILES['setup_py'] = rv
         with open(os.path.join(self.build_dir, 'setup.py'), 'w') as f:
             f.write(rv)
+        logger.info("setup.py built..")
 
     def build_license(self):
         """ Creates a license file by looking in your script for a
@@ -556,6 +589,7 @@ class Builder(object):
         self.package.PACKAGE_FILES['license_md'] = rv
         with open(os.path.join(self.build_dir, "LICENSE.md"), 'w') as f:
             f.writelines(rv)
+        logger.info("License built..")
 
     # TODO: Fix me :(
     # def build_docs(self):
@@ -581,7 +615,7 @@ class Builder(object):
          by setting show_output to True.
          """
         suppress = suppress or self.verbose
-        with dir_context(self.dists_folder):
+        with dir_context(self.build_dir):
             for cmd in self.commands:
                 # TODO: This needs to be better. Not enough info on the build.
                 logger.info("Executing command - %s", str(cmd))
@@ -604,13 +638,12 @@ class Builder(object):
             msg = (
                 "No .pypirc found. Please see "
                 "https://docs.python.org/2/distutils/packageindex.html#pypirc "
-                "for more info."
-            )
+                "for more info.")
             logger.warning(msg)
             self.errors.append(msg)
             return
         logger.info("Uploading Project to the Pypi server..")
-        with dir_context(self.dists_folder):
+        with dir_context(self.build_dir):
             response = execute_shell_command(
                 "twine upload dist/*", suppress=suppress)
             logger.info("Project has been uploaded to the Pypi server!")
@@ -624,7 +657,7 @@ class Builder(object):
          """
         # TODO: Needs research.. See docstring.
         suppress = suppress or self.verbose
-        with dir_context(self.dists_folder):
+        with dir_context(self.build_dir):
             logger.info("Uploading Project to the Pypi TESTING server..")
             cmd = "python setup.py register -r %s" % self.pypi_test_url
             response = execute_shell_command(cmd, suppress=suppress)
@@ -635,7 +668,7 @@ class Builder(object):
         """Uploads your package to the PyPi repository allowing others
         to download easily with pip"""
         suppress = suppress or self.verbose
-        with dir_context(self.dists_folder):
+        with dir_context(self.build_dir):
             logger.info("Uploading Project to the Pypi TESTING server..")
             response = execute_shell_command(
                 "twine upload dist/* -r testpypi", suppress=suppress)

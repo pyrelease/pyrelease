@@ -65,7 +65,8 @@ def version_from_git():
     """Gets the current version from git tags.
     """
     try:
-        versions = subprocess.check_output('git tag --sort version:refname'.split())
+        versions = subprocess.check_output(
+            'git tag --sort version:refname'.split())
     except subprocess.CalledProcessError:
         return
     lines = versions.splitlines()
@@ -134,6 +135,7 @@ def dependencies_ast(package):
 class BuildDocs(object):
     """For getting the description and long_description out of the module docstring
     """
+
     def __init__(self, ctx, user_info):
         target_dir = ctx.home
         mod_abs_path = package_py(target_dir)
@@ -148,21 +150,18 @@ class BuildDocs(object):
         finally:
             sys.path[:] = __path  # restore
         self.module_docs = mod2md(mod, name, "API")
-
         """Set description... This is a hack.."""
         # requires ``__all__`` be set
         entry = mod.__dict__[mod.__all__[0]]
         self.description = ""
         if entry.__doc__:
-            md, sec = doc2md(entry.__doc__, name,
-                                    more_info=True, toc=False)
+            md, sec = doc2md(entry.__doc__, name, more_info=True, toc=False)
 
             self.description = md[2]
         self.long_description = self.module_docs
 
 
 class GatherInfo(object):
-
     def __init__(self, ctx):
         """ Gathers user info from config files. Works with
          `.pypirc`, `.gitconfig`, `.hgrc`, and `.gitconfig`
@@ -231,7 +230,8 @@ class GatherInfo(object):
     def url(self):
         # from .git/config
         if os.path.isdir(self.target_package):
-            package_name = os.path.split(os.path.abspath(self.target_package))[-1]
+            package_name = os.path.split(
+                os.path.abspath(self.target_package))[-1]
             return 'https://pypi.python.org/pypi/%s' % package_name
 
     @property
@@ -272,15 +272,16 @@ url="{url}"
 is_script={is_script}
 find_packages={find_packages}
 """
-        return output.format(name=self.name,
-                             description=repr(self.description),
-                             long_description=repr(self.long_description),
-                             author_email=self.author_email,
-                             author=self.author,
-                             version=self.version,
-                             url=self.url,
-                             is_script=self.is_script,
-                             find_packages=self.find_packages)
+        return output.format(
+            name=self.name,
+            description=repr(self.description),
+            long_description=repr(self.long_description),
+            author_email=self.author_email,
+            author=self.author,
+            version=self.version,
+            url=self.url,
+            is_script=self.is_script,
+            find_packages=self.find_packages)
 
 
 class FillFiles:
@@ -354,21 +355,23 @@ class FillFiles:
             # py_modules = ''
             # packages = "packages=find_packages(exclude=['contrib', 'docs', 'tests']),"
 
-        install_requires = "install_requires=%s," % repr(self.package_info.install_requires)
+        install_requires = "install_requires=%s," % repr(
+            self.package_info.install_requires)
 
-        return SETUP_PY.format(name=self.package_info.name,
-                               description=repr(self.package_info.description),
-                               # long_description=repr(self.package_info.long_description),
-                               author_email=self.package_info.author_email,
-                               author=self.package_info.author,
-                               version=self.package_info.version,
-                               url=self.package_info.url,
-                               console_scripts=console_scripts,
-                               install_requires=install_requires,
-                               license='MIT',
-                               packages=packages,
-                               py_modules=py_modules,
-                               find_packages=self.package_info.find_packages)
+        return SETUP_PY.format(
+            name=self.package_info.name,
+            description=repr(self.package_info.description),
+            # long_description=repr(self.package_info.long_description),
+            author_email=self.package_info.author_email,
+            author=self.package_info.author,
+            version=self.package_info.version,
+            url=self.package_info.url,
+            console_scripts=console_scripts,
+            install_requires=install_requires,
+            license='MIT',
+            packages=packages,
+            py_modules=py_modules,
+            find_packages=self.package_info.find_packages)
 
 
 class Builder:
@@ -399,8 +402,10 @@ class Builder:
         self.commands = self.config["builds"]
         if output_to is not None:
             output_to = os.path.abspath(output_to)
-            self.commands = [" ".join([cmd, "--dist-dir", output_to])
-                             for cmd in self.commands]
+            self.commands = [
+                " ".join([cmd, "--dist-dir", output_to])
+                for cmd in self.commands
+            ]
         self.dists_folder = output_to
 
         # Set True to upload to PyPi test server.
@@ -421,7 +426,7 @@ class Builder:
         # if x is None:
         #     sys.exit()
         if self.use_test_server:
-            register_test_site = "python setup.py register -r https://testpypi.python.org/pypi",    # FOR PYPI TEST SITE
+            register_test_site = "python setup.py register -r https://testpypi.python.org/pypi",  # FOR PYPI TEST SITE
             subprocess.call(register_test_site, shell=True)
         self.log("Done Building")
 
@@ -432,9 +437,11 @@ class Builder:
         in the request header.
         """
         if self.use_test_server:
-            response = execute_shell_command("twine upload dist/* -r testpypi", suppress=False)
+            response = execute_shell_command(
+                "twine upload dist/* -r testpypi", suppress=False)
         else:
-            response = execute_shell_command("twine upload dist/*", suppress=False)
+            response = execute_shell_command(
+                "twine upload dist/*", suppress=False)
 
         # TODO: This needs to be better..
         if response == 127:

@@ -1,8 +1,8 @@
+# coding=utf-8
 import os
 import sys
 
 PY2 = sys.version_info[0] == 2
-
 
 if PY2:
     from ConfigParser import ConfigParser as _ConfigParser, NoOptionError
@@ -19,6 +19,7 @@ if PY2:
          ConfigParser doesn't have a default/fallback argument
          in Python 2 and I mainly work in Python 3 so I threw this
          hack together for the py2.7 users"""
+
         def get(self, section, option, fallback=_UNSET):
             try:
                 rv = _ConfigParser.get(section, option)

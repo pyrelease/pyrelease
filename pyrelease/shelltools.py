@@ -1,3 +1,4 @@
+# coding=utf-8
 import os
 import sys
 import contextlib
@@ -55,7 +56,11 @@ def execute_shell_command(cmd, suppress=True, shell=True):
     try:
         if suppress:
             with ignore_stdout():
-                rv = subprocess.call(cmd, shell=shell, stdout=null_file, stderr=subprocess.STDOUT)
+                rv = subprocess.call(
+                    cmd,
+                    shell=shell,
+                    stdout=null_file,
+                    stderr=subprocess.STDOUT)
         else:
             rv = subprocess.call(cmd, shell=True)
     except Exception as e:
