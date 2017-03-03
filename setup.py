@@ -34,7 +34,7 @@ setup(
     dependency_links=dependency_links,
     entry_points={
         'console_scripts': [
-            'pyrelease=pyrelease.pyrelease:main',
+            'pyrelease=pyrelease.cli:main',
             'pyrelease-cli=pyrelease.cli:main',
         ],
     },

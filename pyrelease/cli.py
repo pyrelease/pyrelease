@@ -2,7 +2,7 @@
 import os
 import logging
 
-from functools import partial
+from .generator import Generator
 import click
 
 # ######## LOGGING #########
@@ -13,7 +13,7 @@ logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler(os.path.join(os.getcwd(), 'error.log'), 'w')
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
-    '[%(levelname)s] <%(funcName)s> <%(module)s> - %(message)s,')    #  @ (%(asctime)s)')
+    '[%(levelname)s] <%(funcName)s> <%(module)s> - %(message)s  @ (%(asctime)s)')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -25,140 +25,14 @@ logger.addHandler(handler)
 # logger.addHandler(s_handler)
 
 
-class Generator(object):
-    """This class is taken directly from the `quickstart.py` for `Lektor`
-     the static site generator by Armin Ronacher Licensed under the BSD-3
-     clause. I have added a few methods since.
-     """
-
-    def __init__(self):
-        self.question = 0
-        self.options = {}
-        self.term_width = min(click.get_terminal_size()[0], 78)
-        self.e = click.secho
-        self.w = partial(click.wrap_text, width=self.term_width)
-
-    def abort(self, message):
-        click.echo('Error: %s' % message, err=True)
-        raise click.Abort()
-
-    def prompt(self,
-               text,
-               default=None,
-               info=None,
-               step=False,
-               allow_none=False):
-        # self.e('')
-        if step:
-            self.question += 1
-            self.e('Step %d:' % self.question, fg='yellow')
-        if info is not None:
-            self.e(click.wrap_text(info, self.term_width - 2, '| ', '| '))
-        text = '> ' + click.style(text, fg='green')
-
-        if allow_none is True:
-            rv = click.prompt(text, default=default, show_default=True)
-            return rv
-        elif default is True or default is False:
-            return click.confirm(text, default=default)
-        else:
-            return click.prompt(text, default=default, show_default=True)
-
-    def title(self, title):
-        self.e(title, fg='cyan')
-        self.e('=' * len(title), fg='cyan')
-        self.e('')
-
-    def red_text(self, text):
-        self.e(self.w(text), fg='red')
-
-    def green_text(self, text):
-        self.e(self.w(text), fg='green')
-
-    def yellow_text(self, text):
-        self.e(self.w(text), fg='yellow')
-
-    def cyan_text(self, text):
-        self.e(self.w(text), fg='cyan')
-
-    def text(self, text):
-        self.e(self.w(text))
-
-    def confirm(self, prompt):
-        self.e('')
-        click.confirm(prompt, default=True, abort=True, prompt_suffix=' ')
-
-    def print_header(self):
-        self.text(" ")
-        self.title("PyRelease - Alpha -")
-        self.yellow_text(
-            "PyRelease is an open-source, MIT licensed. It was made in part by Illume "
-            "and traBpUkciP (Scott Doucet) from a desire to make basic python script "
-            "packaging easy and effective.")
-        self.text(" ")
-
-    def print_footer(self):
-        self.text(" ")
-        self.title("PyRelease")
-        self.green_text(
-            "Thanks for using PyRelease! If you have any suggestions please let us know "
-            "either on GitHUb or by e-mail.")
-
-        self.text(" ")
-        self.yellow_text(
-            "PyRelease is open-source and MIT licensed. It was made in part by Illume "
-            "and traBpUkciP (Scott Doucet) from a desire to make basic python script "
-            "packaging easy and effective.")
-        self.text(" ")
-
-    def cls(self):
-        click.clear()
-
-
-def giver_mode(builder, g):
-    """When ya just wanna plow through it. Maybe it's because you're a pro
-     at this or maybe you just don't care, giver."""
-    import random
-
-    if not os.path.exists(builder.build_dir):
-        builder.build_target_dir()
-
-    message = [
-        "Preparing data",
-        "Reticulating splines",
-        "Collecting data",
-        "Prepping release",
-    ]
-    msg = random.choice(message)
-    with click.progressbar(length=builder.worker_count, label=msg) as bar:
-        bar.update(1)
-        builder.build_readme()
-        bar.update(1)
-        builder.build_license()
-        bar.update(1)
-        builder.build_manifest()
-        bar.update(1)
-        builder.build_requirements()
-        bar.update(1)
-        builder.build_setup()
-        bar.update(1)
-        builder.build_package()
-        bar.update(1)
-        g.text(" ")
-        g.text(" ")
-        g.green_text("Done.")
-        g.text(" ")
-        return builder.errors
-
-
-def view_on_pypi(g, builder, package, URLS):
+def view_on_pypi(g, builder, package, urls):
     g.text(" ")
     g.text("Here, have a look at your new package on PyPi.")
     g.text(" ")
     if builder.use_test_server:
-        click.launch(URLS['test_pypi'] + package.name)
+        click.launch(urls['test_pypi'] + package.name)
     else:
-        click.launch(URLS['pypi'] + package.name)
+        click.launch(urls['pypi'] + package.name)
     g.text(" ")
     click.pause()
 
@@ -183,11 +57,7 @@ def register_package(g, builder):
         g.green_text("Registration complete.")
 
 
-# def confirm_or_exit(g, proceed, on_no="Aborting"):
-#     """Get confirmation from the user to continue or quit. """
-#     if not proceed:
-#         g.text(on_no)
-#         exit()
+pass_context = click.make_pass_decorator(Generator, ensure=True)
 
 
 @click.command()
@@ -203,15 +73,15 @@ def register_package(g, builder):
                               writable=True, resolve_path=True, allow_dash=True))
 @click.argument('project', default=".",
                 type=click.Path(exists=True, file_okay=True, resolve_path=True))
-def release(project, giver, test_pypi, verbose, target):
+@pass_context
+def release(g, project, giver, test_pypi, verbose, target):
     """Releasing python code - an experiment in zero config releases.
 
     Pyrelease gathers info for package, fills out necessary files, builds,
     then uploads to PyPi.
     """
-    from .pyrelease import PyPackage, Builder
-
-    g = Generator()
+    from .pyrelease import PyPackage
+    from .builder import Builder
 
     package = PyPackage.load_package(project, verbose=verbose)
 
@@ -220,17 +90,50 @@ def release(project, giver, test_pypi, verbose, target):
 
     g.cls()
     # ------------------------------------Giver mode
+    # TODO: Move me into a click command group
     if giver:
+        import random
         builder = Builder(package, build_dir=target)
         builder.use_test_server = test_pypi
+
         g.print_header()
         g.red_text("   Giver Mode %s" % ("", "TEST SERVER")[test_pypi])
         g.text(" ")
-        giver_mode(builder, g)
+
+        if not os.path.exists(builder.build_dir):
+            builder.build_target_dir()
+
+        message = [
+            "Preparing data",
+            "Reticulating splines",
+            "Collecting data",
+            "Prepping release",
+        ]
+        msg = random.choice(message)
+        with click.progressbar(length=7, label=msg) as bar:
+            bar.update(1)
+            builder.build_readme()
+            bar.update(1)
+            builder.build_license()
+            bar.update(1)
+            builder.build_manifest()
+            bar.update(1)
+            builder.build_requirements()
+            bar.update(1)
+            builder.build_setup()
+            bar.update(1)
+            builder.build_package()
+            bar.update(1)
+            g.text(" ")
+            g.text(" ")
+            g.green_text("Done.")
+            g.text(" ")
+
         click.pause(info="Press any key to start the build.")
         builder.build_distros(suppress=False)
         g.green_text("Build finished. Upload to PyPi? [Using test server = %s]"
                      % builder.use_test_server)
+
         if builder.use_test_server:
             register_package(g, builder)
 
@@ -255,6 +158,7 @@ def release(project, giver, test_pypi, verbose, target):
         g.text(" ")
         g.print_footer()
         exit()
+    # ------------------------------------End Giver mode
     #################################
 
     g.text(' ')
@@ -276,6 +180,7 @@ def release(project, giver, test_pypi, verbose, target):
         if not proceed:
             g.print_footer()
             click.Abort()
+
     # Make sure the version is correct.
     version = g.prompt(
         "Version", package.version or "0.1.0",
@@ -285,26 +190,31 @@ def release(project, giver, test_pypi, verbose, target):
     result = package.set_version(version)
     if result is None:
         g.abort(
-            "Invalid version. You must choose a version that is higher than, or equal to "
-            "your current version.")
+            "Invalid version. You must choose a version that is "
+            "higher than, or equal to your current version.")
 
     # Go through config files
     g.text(' ')
-    g.text("PyRelease will now attempt to locate any config files to "
-           "use automatically.")
+    g.text("PyRelease will now attempt to locate any config files")
 
     for key, klass in package.user_info.items():
         choices = dict(
-            pypirc="~/.pypirc - Used for uploading to PyPi and it's test server. "
-            "*Needed if you also want to upload to PyPi.",
-            gitconfig="~/.gitconfig - Used for interacting with git. ",
-            hgrc="~/.hgrc - Currently not used for anything. * Safe to leave as None."
+            pypirc="~/.pypirc - Used for uploading to PyPi. "
+                   "*Needed if you also want to upload to PyPi.",
+            gitconfig="~/.gitconfig - Used for interacting with git.",
+            hgrc="~/.hgrc - Currently not used for anything. "
+                 "* Safe to leave as None."
         )
 
         g.red_text("\n * Detected a %s file." % key)
-        name = g.prompt(
-            "Username: ", klass.author or "None", choices[key], step=False)
-        email = g.prompt("Email ", klass.author_email or "None", step=False)
+
+        # TODO: Fix me, not all configs are the same..
+        name = g.prompt("Username: ", klass.author or "None",
+                        choices[key], step=False)
+
+        email = g.prompt("Email ", klass.author_email or "None",
+                         step=False)
+
         package.user_info[key].author = name
         package.user_info[key].author_email = email
 
@@ -318,7 +228,8 @@ def release(project, giver, test_pypi, verbose, target):
         "you may want. If you want, you can rename you script "
         "and next time you run PyRelease it will automatically "
         "pick up the change." % package.name)
-    package.name = str("".join([i for i in str(package.name) if i.isalpha()]))
+    rv = str("".join([i for i in str(package.name) if i.isalpha()]))
+    package.name = rv
 
     # Package short description
     g.text(" ")
@@ -372,7 +283,8 @@ def release(project, giver, test_pypi, verbose, target):
                 package.requirements.extend(dependencies.split(" "))
             list_dependencies()
             g.text(" ")
-            confirm = g.prompt("Is this correct?" % package.requirements, True)
+            confirm = g.prompt("Is this correct?"
+                               % package.requirements, True)
             if confirm:
                 break
 
@@ -410,10 +322,11 @@ def release(project, giver, test_pypi, verbose, target):
         package.set_license(_license)
 
     g.red_text("Using license: %s" % package.license)
-    # g.text(" ")
-    # build_docs = g.prompt("Make pydoc help page? ", True,
-    #                       "Pyrelease can invoke pydoc to automatically create a index.html "
-    #                       "file with your script api auto-documented.")
+    g.text(" ")
+    # build_docs = g.prompt(
+    #     "Make pydoc help page? ", True,
+    #     "Pyrelease can invoke pydoc to automatically create a index.html "
+    #     "file with your script api auto-documented.")
 
     # Set build directory
     g.text(" ")
@@ -426,52 +339,50 @@ def release(project, giver, test_pypi, verbose, target):
     builder.build_dir = os.path.abspath(build_dir)
 
     # --------------------------------------Build all packages.
-    # TODO: Fix error reporting on this part and put some hooks between the calls
+    # TODO: Fix error reporting on this part and put some hooks
+    # between the calls
     g.text(" ")
     g.cyan_text("Pyrelease is ready to build your package.")
     g.text(" ")
     click.pause()
 
-    # k, giver
-    giver_mode(builder, g)
+    g.cyan_text("Building README.rst")
+    builder.build_readme()
+    g.green_text("Complete.")
 
-    # g.cyan_text("Building README.rst")
-    # builder.build_readme()
-    # g.green_text("Complete.")
-    #
-    # g.text(" ")
-    # g.cyan_text("Building LICENSE.md")
-    # builder.build_license()
-    # g.green_text("Complete.")
-    #
-    # g.text(" ")
-    # g.cyan_text("Building MANIFEST.in")
-    # builder.build_manifest()
-    # g.green_text("Complete.")
-    #
-    # g.text(" ")
-    # g.cyan_text("Building requirements.txt")
-    # builder.build_requirements()
-    # g.green_text("Complete.")
-    #
-    # g.text(" ")
-    # g.cyan_text("Building setup.py")
-    # builder.build_setup()
-    # g.green_text("Complete.")
-    #
-    # g.text(" ")
-    # g.cyan_text("Creating package")
-    # builder.build_package()
-    # g.green_text("Complete!")
+    g.text(" ")
+    g.cyan_text("Building LICENSE.md")
+    builder.build_license()
+    g.green_text("Complete.")
+
+    g.text(" ")
+    g.cyan_text("Building MANIFEST.in")
+    builder.build_manifest()
+    g.green_text("Complete.")
+
+    g.text(" ")
+    g.cyan_text("Building requirements.txt")
+    builder.build_requirements()
+    g.green_text("Complete.")
+
+    g.text(" ")
+    g.cyan_text("Building setup.py")
+    builder.build_setup()
+    g.green_text("Complete.")
+
+    g.text(" ")
+    g.cyan_text("Creating package")
+    builder.build_package()
+    g.green_text("Complete!")
 
     errors = package.errors
-    # --------------------------------------- Package creation complete.
+    # -------------------------------- Package creation complete.
 
     if errors:
         g.red_text("Build completed with errors..!")
         g.abort(
-            "There were errors detected during the build, please check the error.log "
-            "file for more details.")
+            "There were errors detected during the build, "
+            "please check the error.log file for more details.")
     else:
         g.green_text("Build completed successfully!")
 
@@ -507,7 +418,8 @@ def release(project, giver, test_pypi, verbose, target):
     if builder.success:
         g.green_text("Builds finished without error.")
     # else:
-    #     g.green_text("There were errors during the build, look at the debug.log for more details.")
+    #     g.green_text("There were errors during the build, "
+    #                  "look at the debug.log for more details.")
 
     g.text(" ")
     g.yellow_text("Have a look at your new package.")
@@ -537,7 +449,8 @@ def release(project, giver, test_pypi, verbose, target):
     g.text(" ")
     if not builder.success:
         # TODO: Figure out any error codes..
-        # g.red_text("Upload completed with errors. Did you remember to set the correct version?")
+        # g.red_text("Upload completed with errors. "
+        #            "Did you remember to set the correct version?")
         pass
     else:
         g.green_text("Upload completed successfully!")
@@ -545,10 +458,10 @@ def release(project, giver, test_pypi, verbose, target):
     view_on_pypi(g, builder, package, URLS)
     g.text(" ")
     if builder.use_test_server:
-        upload = g.prompt("Ready for upload?", True,
-                          "Are you're ready to put your release on Pypi? "
-                          "If you saw anything you want to fix first you "
-                          "can always re-run PyRelease after.")
+        upload = g.prompt(
+            "Ready for upload?", True,
+            "Are you're ready to put your release on Pypi? saw anything "
+            "you want to fix first you can always re-run PyRelease after.")
         if upload:
             builder.use_test_server = False
             builder.upload_to_pypi()
