@@ -20,9 +20,10 @@ if PY2:
          in Python 2 and I mainly work in Python 3 so I threw this
          hack together for the py2.7 users"""
 
-        def get(self, section, option, fallback=_UNSET):
+        def get(self, section, option, **kwargs):
+            fallback = kwargs.get('fallback', _UNSET)
             try:
-                rv = _ConfigParser.get(section, option)
+                rv = _ConfigParser.get(self, section, option, raw=False, vars=None)
             except NoOptionError:
                 if fallback is _UNSET:
                     raise

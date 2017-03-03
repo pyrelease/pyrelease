@@ -13,7 +13,7 @@ logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler(os.path.join(os.getcwd(), 'error.log'), 'w')
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
-    '[%(levelname)s] <%(module)s> - %(message)s,  @ (%(asctime)s)')
+    '[%(levelname)s] <%(funcName)s> <%(module)s> - %(message)s,')    #  @ (%(asctime)s)')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -212,7 +212,11 @@ def release(project, giver, test_pypi, verbose, target):
     from .pyrelease import PyPackage, Builder
 
     g = Generator()
-    package = PyPackage(project, verbose=verbose)
+
+    package = PyPackage.load_package(project, verbose=verbose)
+
+    if package is None:
+        g.abort("Release failed, see the error log for more details.")
 
     g.cls()
     # ------------------------------------Giver mode
@@ -419,7 +423,6 @@ def release(project, giver, test_pypi, verbose, target):
         "package to be created in. Otherwise a default temp "
         "folder will be made automatically in the current working "
         "directory")
-    build_dir = str("".join([i for i in str(package.name) if i.isalnum()]))
     builder.build_dir = os.path.abspath(build_dir)
 
     # --------------------------------------Build all packages.

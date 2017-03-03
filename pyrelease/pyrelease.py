@@ -23,6 +23,14 @@ logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
 
 
+class InvalidPackage(Exception):
+    pass
+
+
+class InvalidPackageName(Exception):
+    pass
+
+
 def find_package(target):
     """ Returns the absolute path to the package file.
 
@@ -35,15 +43,13 @@ def find_package(target):
     This detects single file packages, and packages with __init__.py in them.
     """
 
-    class InvalidPackage(Exception):
-        pass
-
-    class InvalidPackageName(Exception):
-        pass
-
     if not os.path.exists(target):
         logger.error("Target path not valid with pyrelease (%s)", target)
         raise InvalidPackage("Must enter a valid path.")
+
+    if os.path.isdir(target) and os.path.exists(os.path.join(target, 'setup.py')):
+        logger.error("PyRelease doesn't work with existing setup.py files")
+        raise InvalidPackage("setup.py file detected.")
 
     if target.endswith('.py') and os.path.isfile(target):
         if "-" in target:
@@ -131,7 +137,7 @@ def get_license(target):
             line = line.strip()
             if line.startswith("__license__"):
                 license_match = line[14:].replace('"', '').replace("'", "")
-                logger.info("License line found in - %s -", py_file)
+                logger.info("License line found in - %s -", target)
                 return license_match
                 # TODO: Fix me :(
                 # if license_match.upper() == 'MIT':
@@ -146,7 +152,7 @@ def get_license(target):
                 #     print(resp['identifiers']['text'])
                 #     input()
             # logger.warning("Still no license string :/")
-    logger.warning("No license line found in - %s -", py_file)
+    logger.warning("No license line found in - %s -", target)
     return None
 
 
@@ -174,7 +180,7 @@ def get_package_info(name, package_dir):
             license=_license,
             license_name=_license,
             description=description)
-        logger.info("Get package info returned: %s", str(rv))
+        logger.info("Get package info returned: %s", str(rv.keys()))
         return rv
 
 
@@ -360,6 +366,16 @@ class PyPackage(object):
             rv.append("{}: {}".format(k, v))
         return "\n".join(rv)
 
+    @staticmethod
+    def load_package(target, verbose):
+        try:
+            rv = PyPackage(target, verbose=verbose)
+        except Exception as e:
+            logger.error("load_package error traceback: (%s)", exc_info=True)
+            return None
+        else:
+            return rv
+
 
 class Builder(object):
     """Builds pypackage project and uploads to PyPi.
@@ -402,7 +418,7 @@ class Builder(object):
         # Where this stuff will end up.
         if build_dir is None:
             build_dir = os.path.join(
-                os.getcwd(), self.package.name + str(self.package.version))
+                os.getcwd(), (self.package.name + str(self.package.version)))
         self.build_dir = os.path.abspath(build_dir)
 
     @property
@@ -424,7 +440,7 @@ class Builder(object):
             logger.error("Package is more than one file.")
             # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
             raise NotImplementedError('only single files supported')
-        logger.info("%s folder is being copied to %s", self.package.target_file, self.build_dir)
+        logger.info("%s file is being copied to %s", self.package.target_file, self.build_dir)
         copy_to_dir(self.package.target_file, self.build_dir)
 
     def make_all(self):
@@ -443,15 +459,15 @@ class Builder(object):
         return self.errors
 
     def build_target_dir(self):
-        if os.path.exists(self.build_dir):
-            if "__" in self.build_dir[:-5]:
-                last = int(self.build_dir[-1])
-                last += 1
-                logger.debug("%s time through build_target_dir. Build dir - (%s)", (str(last), self.build_dir))
-                self.build_dir += "__%s" % last
-            else:
-                logger.debug("First time through build_target_dir.")
-                self.build_dir += "__1"
+        # if os.path.exists(self.build_dir):
+        #     if "__" in self.build_dir[:-5]:
+        #         last = int(self.build_dir[-1])
+        #         last += 1
+        #         logger.debug("%s time through build_target_dir. Build dir - (%s)", (str(last), self.build_dir))
+        #         self.build_dir += "__%s" % last
+        #     else:
+        #         logger.debug("First time through build_target_dir.")
+        #         self.build_dir += "__1"
         try:
             logger.info("Creating dir - (%s)", self.build_dir)
             os.mkdir(self.build_dir)
@@ -472,7 +488,7 @@ class Builder(object):
             try:
                 copy_dir(data_folder, dest)
                 logger.info("Copying: (%s) - To: (%s)", data_folder, dest)
-            except FileExistsError:
+            except Exception as e:
                 logger.error("File exists error in build_package: (%s)", exc_info=True)
                 new_dir = self.package.package_dir + "_%s" % count
                 self.package.package_dir = new_dir
