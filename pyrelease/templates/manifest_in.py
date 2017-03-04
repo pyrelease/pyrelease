@@ -1,6 +1,6 @@
 TEMPLATE = """\
 # Include the license file
-# include LICENSE.txt
+include LICENSE.md
 
 # Include the data files
 {include_data_files}

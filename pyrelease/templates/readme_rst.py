@@ -6,10 +6,6 @@ TEMPLATE = """\
 .. image:: https://img.shields.io/pypi/v/{name}.svg
         :target: https://pypi.python.org/pypi/{name}
 
-.. image:: https://readthedocs.org/projects/{name}/badge/?version=latest
-        :target: https://{name}.readthedocs.io/en/latest/?badge=latest
-        :alt: Documentation Status
-
 
 {description}
 

@@ -9,7 +9,7 @@ from shutil import copytree as copy_dir
 
 from .templates import readme_rst, manifest_in, setup_py
 from .shelltools import execute_shell_command, ignore_stdout, dir_context
-from .licenses import MIT, UNLICENSE, APACHE_2, GPL_3, BSD_2, BSD_3, LGPL_2, LGPL_3
+from .licenses import LICENSES
 from .compat import devnull
 
 # ######## LOGGING #########
@@ -24,30 +24,24 @@ class Builder(object):
     `build_dir` is the location your finished release will be found.
     """
 
+    # These commands will be run in the build_dir directory
     default_commands = dict(builds=[
         "python setup.py sdist",
         "python setup.py bdist_wheel --universal",
     ])
 
-    LICENSES = {
-        'APACHE-2': APACHE_2.TEMPLATE,
-        'GPL-3': GPL_3.TEMPLATE,
-        'BSD-2': BSD_2.TEMPLATE,
-        'BSD-3': BSD_3.TEMPLATE,
-        'LGPL-2': LGPL_2.TEMPLATE,
-        'LGPL-3': LGPL_3.TEMPLATE,
-        'MIT': MIT.TEMPLATE,
-        'UNLICENSE': UNLICENSE.TEMPLATE,
-    }
+    workers = {}
+
+    # TODO: This should be a mapping to then eh
     pypi_url = r"https://pypi.python.org/pypi"
     pypi_test_url = r"https://testpypi.python.org/pypi"
 
     # dists_folder = None
 
-    def __init__(self, package, build_dir=None, test=False):
+    def __init__(self, package, build_dir=None, test=True):
         self.package = package
         self.verbose = package.verbose
-        self.file_name = package.target_file + ".py"
+        self.file_name = package.target_file     # + ".py"
 
         # Set True to upload to PyPi test server.
         self.use_test_server = test
@@ -58,35 +52,18 @@ class Builder(object):
         # Where this stuff will end up.
         if build_dir is None:
             build_dir = os.path.join(
-                os.getcwd(), (self.package.name + str(self.package.version)))
+                os.getcwd(), (self.package.name + "." + str(self.package.version)))
         self.build_dir = os.path.abspath(build_dir)
 
+    def build_package(self):
+        """Creates the release directory and copies your module as well
+         as any data files if they exist.
 
-    def build_target_dir(self):
-        # if os.path.exists(self.build_dir):
-        #     if "__" in self.build_dir[:-5]:
-        #         last = int(self.build_dir[-1])
-        #         last += 1
-        #         logger.debug("%s time through build_target_dir. Build dir - (%s)", (str(last), self.build_dir))
-        #         self.build_dir += "__%s" % last
-        #     else:
-        #         logger.debug("First time through build_target_dir.")
-        #         self.build_dir += "__1"
-        try:
-            logger.info("Creating dir - (%s)", self.build_dir)
-            os.mkdir(self.build_dir)
-        except OSError:
-            return False
-        else:
-            logger.info("Crerated dir - (%s) - successfully", self.build_dir)
-            return self.build_dir
-
-    def build_package(self, count=1):
-        """Copies the project file and data folders to the build destination"""
+         Should be run before other build stages if the build_dir has
+         changed.
+         """
         if self.package.is_data_files:
             logger.info("Found data files.")
-            if count == 10:
-                return "You should clean up some of those directories.."
             data_folder = os.path.join(self.package.package_dir, 'data')
             dest = os.path.join(self.build_dir, 'data')
             try:
@@ -94,9 +71,7 @@ class Builder(object):
                 logger.info("Copying: (%s) - To: (%s)", data_folder, dest)
             except Exception as e:
                 logger.error("File exists error in build_package: (%s)", exc_info=True)
-                new_dir = self.package.package_dir + "_%s" % count
-                self.package.package_dir = new_dir
-                self.build_package(count + 1)
+
         self.copy_files()
 
     def build_readme(self):
@@ -110,8 +85,7 @@ class Builder(object):
             url=self.package.url,
             is_script=self.package.is_script,
             find_packages=self.package.find_packages,
-            license=self.package.license,
-            license_name=self.package.license_name)
+            license=self.package.license)
         self.package.PACKAGE_FILES['readme_rst'] = rv
         with open(os.path.join(self.build_dir, "README.rst"), 'w') as f:
             f.write(rv)
@@ -184,9 +158,9 @@ class Builder(object):
              UNLICENSE
          """
 
-        template = self.LICENSES.get(self.package.license, None)
+        template = LICENSES.get(self.package.license, None)
         if template is None:
-            template = self.LICENSES['MIT']
+            template = LICENSES['MIT']
 
         rv = template.format(
             name=self.package.name,
@@ -239,11 +213,31 @@ class Builder(object):
         logger.info("%s file is being copied to %s", self.package.target_file, self.build_dir)
         copy_to_dir(self.package.target_file, self.build_dir)
 
+    def create_build_dir(self):
+        build_to = self.build_dir
+
+        if os.path.exists(build_to):
+            file = os.path.basename(build_to)
+            f_name = file[6:-3]
+            if "old_" in file[:4]:
+                f_ver = int(file[4]) + 1
+                return "old_%s_%s" % (f_ver, f_name)
+            else:
+                return "old_1_%s" % f_name
+        try:
+            logger.info("Creating dir - (%s)", build_to)
+            os.mkdir(build_to)
+        except OSError:
+            return False
+        else:
+            logger.info("Crerated dir - (%s) - successfully", build_to)
+            return build_to
+
     def make_all(self):
         """ Help method to just giver and build the whole thing"""
         # self.build_docs() # Broken
         logger.info("Running make_all")
-        self.build_target_dir()
+        self.create_build_dir()
         self.build_readme()
         self.build_license()
         self.build_manifest()
