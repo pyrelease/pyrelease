@@ -71,8 +71,7 @@ pass_context = click.make_pass_decorator(Generator, ensure=True)
               help="This is folder your package will be saved to.",
               type=click.Path(exists=False, file_okay=False,
                               writable=True, resolve_path=True, allow_dash=True))
-@click.argument('project', default=".",
-                type=click.Path(exists=True, file_okay=True, resolve_path=True))
+@click.argument('project', default=".")
 @pass_context
 def release(g, project, giver, test_pypi, verbose, target):
     """Releasing python code - an experiment in zero config releases.
@@ -82,8 +81,9 @@ def release(g, project, giver, test_pypi, verbose, target):
     """
     from .pyrelease import PyPackage
     from .builder import Builder
+    from .licenses import LICENSES
 
-    package = PyPackage.load_package(project, verbose=verbose)
+    package = PyPackage(project, verbose=verbose)
 
     if package is None:
         g.abort("Release failed, see the error log for more details.")
@@ -101,7 +101,7 @@ def release(g, project, giver, test_pypi, verbose, target):
         g.text(" ")
 
         if not os.path.exists(builder.build_dir):
-            builder.build_target_dir()
+            builder.create_build_dir()
 
         message = [
             "Preparing data",
@@ -268,9 +268,10 @@ def release(g, project, giver, test_pypi, verbose, target):
            package.name)
     list_dependencies()
 
+    # exit()
     g.text(" ")
     add_deps = g.prompt(
-        "Add dependencies to list? ", False,
+        "Add more dependencies to list? ", False,
         "You can append more dependencies to the list. You can't however "
         "delete entries, this will probably be implemented in the future.")
     if add_deps:
@@ -292,24 +293,34 @@ def release(g, project, giver, test_pypi, verbose, target):
     g.text(" ")
     g.green_text("Loading builder.")
     builder = Builder(package, build_dir=target)
+
+    # Set the build directory
     g.text(" ")
+    build_dir = g.prompt(
+        "Build directory", builder.build_dir,
+        "You can specify a directory that you would like your "
+        "package to be created in. This can also be handed in "
+        "from the command line with the '-T' or '--target' "
+        "option. If no value is passed in your folder will be "
+        "made automatically in the current working directory")
+    builder.build_dir = os.path.abspath(build_dir)
 
     # Verify License
-    _license = package.package_info['license']
+    _license = package.license
     if _license is None:
         g.text(" ")
         proceed = g.prompt(
             "Choose a License -", True,
             "Having a license for your source code is always a good idea. "
-            "By default PyRelease adds an MIT license to your source, if"
-            "you haven't set the variable `__version__` in your script. "
-            "You can choose from a few others that we have. If you want a "
+            "By default PyRelease will add an MIT license to your source if "
+            "no `__version__` variable was found in your module. However "
+            "you can choose from a few others that we have. If you want a "
             "license that's not in this list, enter None and copy a license "
             "file into the package directory before you build and it will "
             "be included. Or let us know and we can add the license you want. "
             "Yes to pick a license or no to skip.")
         if proceed:
-            for l_name in builder.LICENSES.keys():
+            for l_name in LICENSES.keys():
                 g.text(" ")
                 g.red_text("%s" % l_name)
 
@@ -328,15 +339,8 @@ def release(g, project, giver, test_pypi, verbose, target):
     #     "Pyrelease can invoke pydoc to automatically create a index.html "
     #     "file with your script api auto-documented.")
 
-    # Set build directory
-    g.text(" ")
-    build_dir = g.prompt(
-        "Build directory", builder.build_dir,
-        "You can specify a directory that you would like your "
-        "package to be created in. Otherwise a default temp "
-        "folder will be made automatically in the current working "
-        "directory")
-    builder.build_dir = os.path.abspath(build_dir)
+    # Create the dir, will safely rename if path already exists
+    builder.create_build_dir()
 
     # --------------------------------------Build all packages.
     # TODO: Fix error reporting on this part and put some hooks
@@ -376,8 +380,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     g.green_text("Complete!")
 
     errors = package.errors
-    # -------------------------------- Package creation complete.
-
+    g.text(" ")
     if errors:
         g.red_text("Build completed with errors..!")
         g.abort(
@@ -385,6 +388,7 @@ def release(g, project, giver, test_pypi, verbose, target):
             "please check the error.log file for more details.")
     else:
         g.green_text("Build completed successfully!")
+    # -------------------------------- Package creation complete.
 
     # Preview README.rst
     g.text(" ")

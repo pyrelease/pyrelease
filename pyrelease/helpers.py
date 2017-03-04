@@ -23,7 +23,7 @@ class InvalidPackageName(Exception):
     pass
 
 
-def find_package(target):
+def find_package(what_to_package):
     """ Returns the absolute path to the package file.
 
     Is there a .py file for this repo or a __init__.py ?
@@ -34,50 +34,34 @@ def find_package(target):
 
     This detects single file packages, and packages with __init__.py in them.
     """
+    if what_to_package.endswith('.py'):
+        if not os.path.exists(what_to_package):
+            logger.info("Doesn't exist! (%s)", what_to_package)
+        logger.info("What to package ends with .py - (%s)", what_to_package)
+        folder = os.getcwd()
+        apath = os.path.join(folder, what_to_package)
+        return apath
 
-    if not os.path.exists(target):
-        logger.error("Target path not valid with pyrelease (%s)", target)
-        raise InvalidPackage("Must enter a valid path.")
-
-    if os.path.isdir(target) and os.path.exists(os.path.join(target, 'setup.py')):
-        logger.error("PyRelease doesn't work with existing setup.py files")
-        raise InvalidPackage("setup.py file detected.")
-
-    if target.endswith('.py') and os.path.isfile(target):
-        if "-" in target:
-            raise InvalidPackageName("Filename cannot contain dashes.")
-        # Single file package, just what we want.
-        logger.info("Single file target found (%s)", target)
-        return os.path.abspath(target)
-
-    elif os.path.isdir(target) or target == '.':
-        # lets see if there is a __init__.py in there.
-        path = os.path.join(target, '__init__.py')
-        if os.path.exists(path):
-            logger.info("Single file target found (%s)", path)
-            return os.path.abspath(path)
-
+    if os.path.isdir(what_to_package) or what_to_package == '.':
         # maybe there is a file with the same name as the folder?
-        folder_name = os.path.split(os.path.abspath(target))[-1]
-        if "-" in folder_name:
-            raise InvalidPackageName("Cannot find a valid module to release.")
+        folder_name = os.path.split(os.path.abspath(what_to_package))[-1]
+        apath = os.path.join(what_to_package, folder_name + '.py')
+        if os.path.exists(apath):
+            logger.info("Found file with same name as folder - (%s)", apath)
+            return os.path.relpath(apath)
 
-        path = os.path.join(target, folder_name + '.py')
-        if os.path.exists(path):
-            logger.info("Single file target found (%s)", path)
-            return os.path.abspath(path)
+        # lets see if there is a __init__.py in there.
+        apath = os.path.join(what_to_package, '__init__.py')
+        if os.path.exists(apath):
+            logger.info("What to package found - (%s)", apath)
+            return os.path.relpath(apath)
 
-        # Check for an __init__.py file in there while we're at it.
-        path = os.path.join(target, folder_name, '__init__.py')
-        if os.path.exists(path):
-            logger.info("Single file target found (%s)", path)
-            return os.path.abspath(path)
-
-        logger.error("No valid package found in. (%s)", target)
-        exit()
+        apath = os.path.join(what_to_package, folder_name, '__init__.py')
+        if os.path.exists(apath):
+            logger.info("Found __init__.py - (%s)", apath)
+            return os.path.relpath(apath)
     else:
-        logger.error("Pyrelease only supports single file package release.")
-        exit()
+        logger.warning("No valid package found! (%s)", what_to_package)
 
 
 def get_user_info():
@@ -103,7 +87,7 @@ def get_version(py_file):
                 logger.info("Version found - %s -", str(version))
                 return version
     logger.warning("No version found in - %s -", py_file)
-    return False
+    return None
 
 
 #         try:
@@ -153,27 +137,35 @@ def get_package_info(name, package_dir):
      This info is returned as a dict which also contains a pointer
      to the imported module.
      """
-    sys.path.insert(0, package_dir)
+    mod = None
+    description = ""
+    package_dir = os.path.abspath(os.path.dirname(package_dir))
     try:
         logger.info("Importing module - %s -", name)
+        logger.info("Importing module from dir - %s -", package_dir)
+        sys.path.insert(0, package_dir)
         mod = __import__(name)
-    except Exception as e:
-        logger.error(
-            "Error importing module build_docs function (%s)", exc_info=True)
+    except ImportError as e:
+        logger.warning(
+            "Error importing module %s", name)
     else:
-        entry = mod.__dict__[mod.__all__[0]]
-        description = ""
-        if entry.__doc__:
-            description = entry.__doc__
-        logger.info("Description: %s", str(description))
-        _license = get_license(os.path.join(package_dir, name + ".py"))
-        rv = dict(
-            module=mod,
-            license=_license,
-            license_name=_license,
-            description=description)
-        logger.info("Get package info returned: %s", str(rv.keys()))
-        return rv
+        try:
+            entry = mod.__dict__[mod.__all__[0]]
+        except (AttributeError, KeyError):
+            logger.warning(
+                "Module has no __all__ attribute from which to "
+                "derive it's description.")
+        else:
+            if entry.__doc__:
+                description = entry.__doc__
+                logger.info("Description: %s", str(description))
+            else:
+                logger.warning(
+                    "Unable to find get a description for (%s)", name)
+    rv = dict(
+        module=mod,
+        description=description)
+    return rv
 
 
 def get_author(package):
@@ -208,8 +200,7 @@ def migrate_version(file, new_version):
 
 
 def resolve_path(target_path):
-    return os.path.abspath(
-            os.path.dirname(target_path))
+    return os.path.abspath(target_path)
 
 
 def get_name(path):
@@ -260,20 +251,77 @@ def get_dependencies(target):
     # TODO: Make this look for a requirements.tx file also
     # TODO: Get more popular conversions.
     conversions = dict(yaml='pyyaml')
+
+    # So ast can import the target we must add it's
+    # directory to the system path.
+    abs_path = os.path.abspath(target)
+    sys.path.insert(0, abs_path)
+
     module = ast.parse(open(target).read())
     deps = []
     for node in module.body:
+        # logger.info("NODE. (%s)", repr(node))
         if type(node) is ast.Import:
             for name in node.names:
                 parts = imp.find_module(name.name.split('.')[0])
-                if 'site-package' in parts[1]:
-                    deps.append(name.name.split('.')[0])
+                # logger.info("name. (%s)", repr(name))
+                # logger.info("parts. (%s)",  repr(parts))
+                try:
+                    if 'site-package' in parts[1]:
+                        rv = name.name.split('.')[0]
+                        deps.append(rv)
+                        logger.info("Found dependency: %s", rv)
+                except TypeError as e:
+                    # logger.error("No parts. Continuing without - (%s)", exc_info=True)
+                    logger.warning("No parts. Continuing without.")
+
         if type(node) is ast.ImportFrom:
             parts = imp.find_module(node.module.split('.')[0])
-            if 'site-package' in parts[1]:
-                deps.append(node.module.split('.')[0])
+            try:
+                if 'site-package' in parts[1]:
+                    rv = node.module.split('.')[0]
+                    deps.append(rv)
+                    logger.info("Found dependency: %s", rv)
+            except TypeError as e:
+                # logger.error("No parts. Continuing without - (%s)", exc_info=True)
+                logger.warning("No parts. Continuing without.")
+
     parsed_deps = []
     for dep in deps:
-        parsed_deps.append(conversions.get(dep, dep))
-    logger.info("Found dependencies. (%s)", "\n".join(parsed_deps))
+        converted = conversions.get(dep, None)
+        if converted is not None:
+            dep = converted
+        parsed_deps.append(dep)
+
+    logger.info("Found dependencies. (%s)", ", ".join(deps))
+    logger.info("Parsed dependencies. (%s)", ", ".join(parsed_deps))
     return parsed_deps
+
+    # logger.info("Found dependencies. (%s)", "\n".join(deps))
+    # return deps
+
+
+    # conversions = dict(yaml='pyyaml')
+    # module = ast.parse(open(target).read())
+    # deps = []
+    # for node in module.body:
+    #     if type(node) is ast.Import:
+    #         for name in node.names:
+    #             parts = imp.find_module(name.name.split('.')[0])
+    #             try:
+    #                 if 'site-package' in parts[1]:
+    #                     deps.append(name.name.split('.')[0])
+    #             except TypeError:
+    #                 pass
+    #     if type(node) is ast.ImportFrom:
+    #         parts = imp.find_module(node.module.split('.')[0])
+    #         try:
+    #             if 'site-package' in parts[1]:
+    #                 deps.append(node.module.split('.')[0])
+    #         except TypeError:
+    #             pass
+    # parsed_deps = []
+    # for dep in deps:
+    #     parsed_deps.append(conversions.get(dep, dep))
+    # logger.info("Found dependencies. (%s)", "\n".join(parsed_deps))
+    # return parsed_deps
