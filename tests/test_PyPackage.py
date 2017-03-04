@@ -1,7 +1,6 @@
 from __future__ import print_function
 import os
 import unittest
-from unittest.mock import mock_open
 
 
 from pyrelease.pyrelease import PyPackage
