@@ -3,8 +3,13 @@ from __future__ import print_function, absolute_import
 import os
 import logging
 from email.utils import getaddresses
+from setuptools.package_index import PyPIConfig
 
-from .compat import ConfigParser
+try:
+    import configparser
+except ImportError:
+    # Python 2.x fallback
+    import ConfigParser as configparser
 
 logger = logging.getLogger('pyrelease')
 
@@ -12,6 +17,14 @@ logger = logging.getLogger('pyrelease')
 
 
 class UserConfigMixin(object):
+    parser = configparser.ConfigParser()
+
+    def get(self, section, item, fallback=None):
+        try:
+            return self.parser.get(section, item)
+        except (configparser.ParsingError, configparser.NoOptionError):
+            return fallback
+
     def __str__(self):
         rv = []
         for k, v in self.__dict__.items():
@@ -37,15 +50,13 @@ class PyPiRc(UserConfigMixin):
     author_email = myemail@example.com
 
     """
-
     def __init__(self):
-        parser = ConfigParser()
         self.author = None
         self.author_email = None
         if os.path.exists(os.path.expanduser('~/.pypirc')):
-            parser.read(os.path.expanduser('~/.pypirc'))
-            self.author = parser.get('pypi', 'username', fallback=None)
-            self.author_email = parser.get('pypi', 'email', fallback=None)
+            self.parser.read(os.path.expanduser('~/.pypirc'))
+            self.author = self.get('pypi', 'username', fallback=None)
+            self.author_email = self.get('pypi', 'email', fallback=None)
 
 
 class GitConfig(UserConfigMixin):
@@ -62,10 +73,9 @@ class GitConfig(UserConfigMixin):
         self.author = None
         self.author_email = None
         if os.path.exists(os.path.expanduser('~/.gitconfig')):
-            parser = ConfigParser()
-            parser.read(os.path.expanduser('~/.gitconfig'))
-            self.author = parser.get('user', 'name', fallback=None)
-            self.author_email = parser.get('user', 'email', fallback=None)
+            self.parser.read(os.path.expanduser('~/.gitconfig'))
+            self.author = self.get('user', 'name', fallback=None)
+            self.author_email = self.get('user', 'email', fallback=None)
         else:
             logger.error("No .gitconfig found.")
 
@@ -81,10 +91,9 @@ class HgRc(UserConfigMixin):
         self.author = None
         self.author_email = None
         if os.path.exists(os.path.expanduser('~/.hgrc')):
-            parser = ConfigParser()
-            parser.read(os.path.expanduser('~/.hgrc'))
+            self.parser.read(os.path.expanduser('~/.hgrc'))
 
-            username = parser.get('ui', 'username', fallback=None)
+            username = self.get('ui', 'username', fallback=None)
             if username is None:
                 return
             try:
