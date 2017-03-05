@@ -23,7 +23,6 @@ regular PyPi servers.
 This doesn't cover everything, check out the code if you want to see more.
 
 
-
 Note: As of right now builds don't clean up after themselves, so you may
 have to clean up any old ones yourself. They are tagged with the version
 and will be in the same folder as the package you're attempting to build.
@@ -50,7 +49,13 @@ Installation
 Download Package from github, unzip into a directory and open up the
 terminal. From the same directory that you unzipped the files run::
 
+    $ python setup.py install
+
+
+Or you can use pip::
+
     $ pip install -e . --user
+
 
 This will install pyrelease in "editable" mode and any changes you make
 to the source code will be reflected when you run the pyrelease. This way
@@ -90,7 +95,7 @@ or just::
 There's an example script in the tests directory that gives a (poor) example of
 how it works::
 
-    $ cd tests/my_test_package
+    $ cd examples/simple_example
     $ pyrelease-cli trabconfig.py
 
 
@@ -119,6 +124,22 @@ switch --giver or just -G activates it. Here's an example::
 Sometimes though when ya giver, ya wanna be just a little be careful, so
 there is a switch that sets the pypi test server as the destination, -T
 or --test-pypi. Or just giver, whatever fills your boots.
+
+
+Tests
+-----
+
+There are tests located in the `pyrelease/tests` folder. I recommend running
+them with `nose` which can be installed with the included `requirements_dev.txt`
+file. From the directory that PyRelease is located enter these commands::
+
+    $ pip install -r requirements_dev.txt
+
+    $ python -m nose
+
+For a test coverage report use this command instead::
+
+    $ python -m nose --with-coverage --cover-package pyrelease
 
 
 Show All Console Messages
@@ -150,7 +171,7 @@ a file with it but I don't wanna be *that* guy, so ***make backups***)
 How does it Work?
 -----------------
 
-I have a small test package setup in `tests/my_test_package/`. To try it
+I have a small test package setup in `examples/simple_example/`. To try it
 out just run::
 
     $ pyrelease-cli trabconfig.py
@@ -159,7 +180,7 @@ or::
 
     $ pyrelease trabconfig.py
 
-Make sure you run it from inside `tests/my_test_package` . The finished
+Make sure you run it from inside `examples/simple_example/` . The finished
 files are saved by default into a folder tagged with the version and name
 of the package. It should include README.rst, LICENSE.md, MANIFEST.in,
 and setup.py files, as well as copied over everything in the `data` folder
@@ -167,7 +188,7 @@ and setup.py files, as well as copied over everything in the `data` folder
 steps you made up to, and -hopefully- including the error. The file will
 be named `error.log` and found in the current working directory.
 For example, a file named my_script.py version 0.8.5 will produce a folder
-named `/my_script0.8.5`.
+named `/my_script.0.8.5`.
 
 
 **Note:** This log clears at the start of each run so save any logs
@@ -194,21 +215,17 @@ scripts.
 Development
 -----------
 
-Most of the script is in pyrelease.py with a few shell helper functions
-located in shelltools.py and the config file gathering logic found in
-userdata.py (.gitconfig scraper, etc..)
+The `PyPackage` class gathers and stores your package info and gets plugged
+into the `Builder` class, which further breaks down the build sequence.
 
-The CLI is now complete and tested to run in Python 2.7 and 3.6. That code
-as well as a click helper class -from a module in Lektor- to ease the
-writing of the bulk of the script, which is found in `pyrelease/cli.py`
+The CLI is tested to run in Python 2.7 and 3.6. That code is found in
+`pyrelease/cli.py`. The CLI themed generator class is now in the
+`pyrelease/generator.py` module.
 
-There's a main function at the bottom of pyrelease.py which show how the
-build flow has been broken down. Check out the `PyPackage` class, it's
-what gathers and stores your package info and gets plugged into the
-`Builder` class, which further breaks down the build sequence.
+The config file gathering logic is found in userdata.py (.gitconfig scraper, etc..)
 
-There is a logger available for basic info messages. And it can be channeled
-to a file by uncommenting the section at the top of `pyrelease.py`
+There is a logger available for basic info messages. Just use `logger.info`
+etc. to use it. There are a few shell helper functions located in shelltools.py.
 
 
 Todo

@@ -24,7 +24,8 @@ class InvalidPackageName(Exception):
 
 
 def find_package(what_to_package):
-    """ Returns the absolute path to the package file.
+    """ Returns the path to the package file if found
+     to be compatible with PyRelease.
 
     Is there a .py file for this repo or a __init__.py ?
 
@@ -40,7 +41,8 @@ def find_package(what_to_package):
         logger.info("What to package ends with .py - (%s)", what_to_package)
         folder = os.getcwd()
         apath = os.path.join(folder, what_to_package)
-        return apath
+        # return apath
+        return os.path.relpath(apath)
 
     if os.path.isdir(what_to_package) or what_to_package == '.':
         # maybe there is a file with the same name as the folder?
