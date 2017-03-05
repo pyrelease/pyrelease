@@ -7,22 +7,16 @@ import yaml
 
 __all__ = ["trabConfig"]
 __license__ = 'MIT'
-__version__ = '0.5.1'
+__version__ = '0.1.0'
 
 
-class trabConfig():
-    """A simple config parser with auto-save that supports yaml and json. - MIT Licensed"""
+class trabConfig(object):
+    """A simple config parser with auto-save"""
 
     def __init__(self, path, autosave=False, data="dict"):
         """Loads a config file from ``path``. If ``autosave`` is set to True
-        then any changes made to config parameters will be saved to file.
-
-        - NOTE: Not thread-safe
-
-        :param path: the location of the config file
-        :param autosave: turns on save after change
-        :param data: data to add to the config on start
-        """
+         then any changes made to config parameters will be saved to file.
+         """
         self._file_path = path
         self.auto_save = autosave
         self._format = data
@@ -31,20 +25,12 @@ class trabConfig():
 
     def get(self, key, d=None):
         """Return ``key`` from config or ``d``.
-
-        :param key: key to retrieve
-        :param d: default value if key is not found
-        :return: self.__config_data[key] or None
-        """
+         """
         return self._config_data.get(key, d)
 
     def set(self, key, value):
         """Set config ``key`` to ``value``.
-
-        :param key: config parameter to set
-        :param value: new config value
-        :return: None if successful else ``exception.KeyError``
-        """
+         """
         if key in self._config_data:
             self._config_data[key] = value
             if not self.auto_save:
@@ -55,10 +41,7 @@ class trabConfig():
 
     def new(self, key, value):
         """Make a new config value which can be set and saved.
-
-        :param key: config parameter to create
-        :param value: new config value
-        """
+         """
         if key not in self._config_data:
             self._config_data[key] = value
             if not self.auto_save:
@@ -67,15 +50,12 @@ class trabConfig():
 
     def save(self):
         """Save the config file and any changes you have made to it.
-
-        """
+         """
         self._save_cfg()
 
     def delete(self, key):
         """Delete config setting ``key``.
-
-        :param key: config setting to delete
-        """
+         """
         self._config_data.pop(key, None)
         if self.auto_save:
             self.save()
@@ -155,9 +135,6 @@ class trabConfig():
             config = trabconfig.from_yaml('config.yml')
         ```
 
-        :param file_path: location of yaml config file
-        :param auto_save: toggle save on changes
-        :return: ``instance.trabConfig``
         """
         return trabConfig(file_path, auto_save, data="yaml")
 

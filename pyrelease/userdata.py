@@ -5,11 +5,7 @@ import logging
 from email.utils import getaddresses
 from setuptools.package_index import PyPIConfig
 
-try:
-    import configparser
-except ImportError:
-    # Python 2.x fallback
-    import ConfigParser as configparser
+from .compat import configparser
 
 logger = logging.getLogger('pyrelease')
 
@@ -53,7 +49,9 @@ class PyPiRc(UserConfigMixin):
     def __init__(self):
         self.author = None
         self.author_email = None
+        self.exists = False
         if os.path.exists(os.path.expanduser('~/.pypirc')):
+            self.exists = True
             self.parser.read(os.path.expanduser('~/.pypirc'))
             self.author = self.get('pypi', 'username', fallback=None)
             self.author_email = self.get('pypi', 'email', fallback=None)
@@ -72,7 +70,9 @@ class GitConfig(UserConfigMixin):
     def __init__(self):
         self.author = None
         self.author_email = None
+        self.exists = False
         if os.path.exists(os.path.expanduser('~/.gitconfig')):
+            self.exists = True
             self.parser.read(os.path.expanduser('~/.gitconfig'))
             self.author = self.get('user', 'name', fallback=None)
             self.author_email = self.get('user', 'email', fallback=None)
@@ -90,7 +90,9 @@ class HgRc(UserConfigMixin):
     def __init__(self):
         self.author = None
         self.author_email = None
+        self.exists = False
         if os.path.exists(os.path.expanduser('~/.hgrc')):
+            self.exists = True
             self.parser.read(os.path.expanduser('~/.hgrc'))
 
             username = self.get('ui', 'username', fallback=None)

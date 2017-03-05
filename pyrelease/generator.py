@@ -103,13 +103,7 @@ class Generator(object):
         self.green_text(
             "Thanks for using PyRelease! If you have any suggestions please let us know "
             "either on GitHUb or by e-mail.")
-
-        self.text(" ")
-        self.yellow_text(
-            "PyRelease is open-source and MIT licensed. It was made in part by Illume "
-            "and traBpUkciP (Scott Doucet) from a desire to make basic python script "
-            "packaging easy and effective.")
-        self.text(" ")
+        self.print_header()
 
     def cls(self):
         click.clear()

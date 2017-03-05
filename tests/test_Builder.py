@@ -16,7 +16,7 @@ class TestBuilder(unittest.TestCase):
 
     def tearDown(self):
         try:
-            os.rmdir(self.builder.build_dir)
+            os.rmdir(os.path.abspath(self.builder.build_dir))
         except OSError:
             pass
 

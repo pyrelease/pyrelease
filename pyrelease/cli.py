@@ -57,44 +57,14 @@ def register_package(g, builder):
         g.green_text("Registration complete.")
 
 
-pass_context = click.make_pass_decorator(Generator, ensure=True)
-
-
-@click.command()
-@click.option('-G', '--giver', is_flag=True,
-              help="Enable this to just giver and build the whole thing in one go.")
-@click.option('-T', '--test-pypi', is_flag=True,
-              help="Upload to the PyPi test site.")
-@click.option('-V', '--verbose', is_flag=True,
-              help="Enable to view Twine output.")
-@click.option('-T', '-t', '--target', default=None,
-              help="This is folder your package will be saved to.",
-              type=click.Path(exists=False, file_okay=False,
-                              writable=True, resolve_path=True, allow_dash=True))
-@click.argument('project', default=".")
-@pass_context
-def release(g, project, giver, test_pypi, verbose, target):
-    """Releasing python code - an experiment in zero config releases.
-
-    Pyrelease gathers info for package, fills out necessary files, builds,
-    then uploads to PyPi.
-    """
-    from .pyrelease import PyPackage
-    from .builder import Builder
-    from .licenses import LICENSES
-
-    package = PyPackage(project, verbose=verbose)
-
-    if package is None:
-        g.abort("Release failed, see the error log for more details.")
-
-    g.cls()
-    # ------------------------------------Giver mode
-    # TODO: Move me into a click command group
-    if giver:
+def giver(g, package, target, test_pypi):
         import random
+        from .builder import Builder
+
         builder = Builder(package, build_dir=target)
         builder.use_test_server = test_pypi
+
+        g.cls()
 
         g.print_header()
         g.red_text("   Giver Mode %s" % ("", "TEST SERVER")[test_pypi])
@@ -161,14 +131,55 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ------------------------------------End Giver mode
     #################################
 
+
+pass_context = click.make_pass_decorator(Generator, ensure=True)
+
+
+@click.command()
+@click.option('-G', '--giver', is_flag=True,
+              help="Enable this to just giver and build the whole thing in one go.")
+@click.option('-T', '--test-pypi', is_flag=True,
+              help="Upload to the PyPi test site.")
+@click.option('-V', '--verbose', is_flag=True,
+              help="Enable to view Twine output.")
+@click.option('-T', '-t', '--target', default=None,
+              help="This is folder your package will be saved to.",
+              type=click.Path(exists=False, file_okay=False,
+                              writable=True, resolve_path=True, allow_dash=True))
+@click.argument('project', default=".")
+@pass_context
+def release(g, project, giver, test_pypi, verbose, target):
+    """Releasing python code - an experiment in zero config releases.
+
+    Pyrelease gathers info for package, fills out necessary files, builds,
+    then uploads to PyPi.
+    """
+    from .pyrelease import PyPackage
+    from .builder import Builder
+    from .licenses import LICENSES
+
+    package = PyPackage(project, verbose=verbose)
+
+    if package is None:
+        g.abort("Release failed, see the error log for more details.")
+
+    # ------------------------------------Giver mode
+    # TODO: Move me into a click command group
+    if giver:
+        giver(g, package, target, test_pypi)
+    #######################################
+
+    # ---------------- Clear the screen and start wizard
+    g.cls()
+
     g.text(' ')
     g.title("PyRelease wizard")
     g.green_text("This wizard will help guide you through setting up %s "
                  "for release on pypi. Don't worry, it's easy! "
-                 "Press ctrl-c at any time to exit to the terminal" %
+                 "Press ctrl-D at any time to exit to the terminal" %
                  package.name)
 
-    # Check for a .pypirc file. It's required to upload to pypi.
+    # ---------- Check for a .pypirc file. It's required to upload to pypi.
     g.text(' ')
     if not os.path.exists(os.path.expanduser('~/.pypirc')):
         proceed = g.prompt(
@@ -181,19 +192,124 @@ def release(g, project, giver, test_pypi, verbose, target):
             g.print_footer()
             click.Abort()
 
-    # Make sure the version is correct.
+    # ---------------------------------- Verify project name
+    g.text(" ")
+    package.name = g.prompt(
+        "Release name:", package.name,
+        "Is %s the name you want to go with for your release? "
+        "We try to guess it based on the name of the file or "
+        "directory you ran PyRelease in so it's not always what "
+        "you may want. If you want, you can rename you script "
+        "and next time you run PyRelease it will automatically "
+        "pick up the change." % package.name)
+    rv = str("".join([i for i in str(package.name) if i.isalpha()]))
+    package.name = rv
+
+    # ---------------------------------- Package short description
+    g.text(" ")
+    package.description = g.prompt(
+        "Short Description:", package.description,
+        "PyPackage tries to automatically fill the package "
+        "description based on the first doc-string found "
+        "in the target module. Sometimes this doesn't "
+        "always turn out right, so here's your chance to "
+        "fix it. This is the same description that will "
+        "show on the PyPi package index so try and make "
+        "it as short and descriptive as possible.")
+
+    # ---------------------------------- Make sure the version is correct.
+    g.text(" ")
     version = g.prompt(
         "Version", package.version or "0.1.0",
         "%s is set to version %s. Enter a new version or press enter "
         "to continue." % (package.name, package.version))
 
-    result = package.set_version(version)
+    result = package.version = version
     if result is None:
         g.abort(
             "Invalid version. You must choose a version that is "
             "higher than, or equal to your current version.")
 
-    # Go through config files
+    # ---------------------------------- Authors name
+    g.text(" ")
+    package.author = g.prompt(
+        "Author: ", package.author,
+        "Your name as you want it to appear in the documentation "
+        "for your release.")
+
+    # ---------------------------------- Authors e-mail
+    g.text(" ")
+    package.author_email = g.prompt(
+        "E-mail: ", package.author_email,
+        "Leaving an e-mail gives people who use your package a way to "
+        "reach you with feedback and support.")
+
+    # ---------------------------------- Verify License
+    g.text(" ")
+    _license = package.license
+    proceed = g.prompt(
+        "Choose a License -", True,
+        "Having a license for your source code is always a good idea. "
+        "By default PyRelease will add an MIT license to your source if "
+        "no `__version__` variable was found in your module. However "
+        "you can choose from a few others that we have. If you want a "
+        "license that's not in this list, enter None and copy a license "
+        "file into the package directory before you build and it will "
+        "be included. Or let us know and we can add the license you want. "
+        "Yes to pick a license or no to skip.")
+    if proceed:
+        for l_name in LICENSES.keys():
+            g.text(" ")
+            g.red_text("%s" % l_name)
+
+        g.text(" ")
+        _license = g.prompt(
+            "Choose a License", "MIT",
+            "Choose from the list, if the license you want isn't "
+            "there let us know so we can add it.! Make sure you type "
+            "the name exactly how you see it.")
+    package.license = _license
+
+    g.text(" ")
+    g.red_text("Using license: %s" % package.license)
+
+    # ---------------------------------- Verify requirements
+    g.text(" ")
+    g.text("PyRelease has analyzed %s and has found these dependancies." %
+           package.name)
+
+    def list_dependencies():
+        for dep in package.requirements:
+            g.text(" ")
+            g.red_text(dep)
+    list_dependencies()
+
+    g.text(" ")
+    add_deps = g.prompt(
+        "Add more dependencies to list? ", False,
+        "You can append more dependencies to the list. You can't however "
+        "delete entries, this will probably be implemented in the future.")
+    if add_deps:
+        g.text(" ")
+        while 1:
+            dependencies = g.prompt(
+                "Please enter any dependencies you want to append to "
+                "the list. Separate each entry with an empty space.", "")
+            if dependencies != "":
+                package.requirements.extend(dependencies.split(" "))
+            list_dependencies()
+            g.text(" ")
+            confirm = g.prompt("Is this correct?"
+                               % package.requirements, True)
+            if confirm:
+                break
+
+    # ----------------------- Load up the Builder.
+    g.text(" ")
+    g.green_text("Loading builder.")
+    builder = Builder(package, build_dir=target)
+
+    # ---------------------------------- Go through config files
     g.text(' ')
     g.text("PyRelease will now attempt to locate any config files")
 
@@ -218,83 +334,7 @@ def release(g, project, giver, test_pypi, verbose, target):
         package.user_info[key].author = name
         package.user_info[key].author_email = email
 
-    # Verify project name
-    g.text(" ")
-    package.name = g.prompt(
-        "Release name:", package.name,
-        "Is %s the name you want to go with for your release? "
-        "We try to guess it based on the name of the file or "
-        "directory you ran PyRelease in so it's not always what "
-        "you may want. If you want, you can rename you script "
-        "and next time you run PyRelease it will automatically "
-        "pick up the change." % package.name)
-    rv = str("".join([i for i in str(package.name) if i.isalpha()]))
-    package.name = rv
-
-    # Package short description
-    g.text(" ")
-    package.description = g.prompt(
-        "Short Description:", package.description,
-        "PyPackage tries to automatically fill the package "
-        "description based on the first doc-string found "
-        "in the target module. Sometimes this doesn't "
-        "always turn out right, so here's your chance to "
-        "fix it. This is the same description that will "
-        "show on the PyPi package index so try and make "
-        "it as short and descriptive as possible.")
-
-    # Authors name
-    g.text(" ")
-    package.author = g.prompt(
-        "Author: ", package.author,
-        "Your name as you want it to appear in the documentation "
-        "for your release.")
-
-    # Authors e-mail
-    g.text(" ")
-    package.author_email = g.prompt(
-        "E-mail: ", package.author_email,
-        "Leaving an e-mail gives people who use your package a way to "
-        "reach you with feedback and support.")
-
-    # Verify requirements
-    def list_dependencies():
-        for dep in package.requirements:
-            g.text(" ")
-            g.red_text(dep)
-
-    g.text(" ")
-    g.text("PyRelease has analyzed %s and has found these dependancies." %
-           package.name)
-    list_dependencies()
-
-    # exit()
-    g.text(" ")
-    add_deps = g.prompt(
-        "Add more dependencies to list? ", False,
-        "You can append more dependencies to the list. You can't however "
-        "delete entries, this will probably be implemented in the future.")
-    if add_deps:
-        g.text(" ")
-        while 1:
-            dependencies = g.prompt(
-                "Please enter any dependencies you want to append to "
-                "the list. Separate each entry with an empty space.", "")
-            if dependencies != "":
-                package.requirements.extend(dependencies.split(" "))
-            list_dependencies()
-            g.text(" ")
-            confirm = g.prompt("Is this correct?"
-                               % package.requirements, True)
-            if confirm:
-                break
-
-    # Load up the Builder.
-    g.text(" ")
-    g.green_text("Loading builder.")
-    builder = Builder(package, build_dir=target)
-
-    # Set the build directory
+    # ----------------------------------Set the build directory
     g.text(" ")
     build_dir = g.prompt(
         "Build directory", builder.build_dir,
@@ -305,50 +345,25 @@ def release(g, project, giver, test_pypi, verbose, target):
         "made automatically in the current working directory")
     builder.build_dir = os.path.abspath(build_dir)
 
-    # Verify License
-    _license = package.license
-    if _license is None:
-        g.text(" ")
-        proceed = g.prompt(
-            "Choose a License -", True,
-            "Having a license for your source code is always a good idea. "
-            "By default PyRelease will add an MIT license to your source if "
-            "no `__version__` variable was found in your module. However "
-            "you can choose from a few others that we have. If you want a "
-            "license that's not in this list, enter None and copy a license "
-            "file into the package directory before you build and it will "
-            "be included. Or let us know and we can add the license you want. "
-            "Yes to pick a license or no to skip.")
-        if proceed:
-            for l_name in LICENSES.keys():
-                g.text(" ")
-                g.red_text("%s" % l_name)
-
-            g.text(" ")
-            _license = g.prompt(
-                "Choose a License", "MIT",
-                "Choose from the list, if the license you want isn't "
-                "there let us know so we can add it.! Make sure you type "
-                "the name exactly how you see it.")
-        package.set_license(_license)
-
-    g.red_text("Using license: %s" % package.license)
-    g.text(" ")
+    # ------------------------------ Build pydocs
+    # g.text(" ")
     # build_docs = g.prompt(
     #     "Make pydoc help page? ", True,
     #     "Pyrelease can invoke pydoc to automatically create a index.html "
     #     "file with your script api auto-documented.")
 
+    #
     # Create the dir, will safely rename if path already exists
-    builder.create_build_dir()
 
-    # --------------------------------------Build all packages.
+    # ---------------------------------- Build all packages.
     # TODO: Fix error reporting on this part and put some hooks
     # between the calls
     g.text(" ")
     g.cyan_text("Pyrelease is ready to build your package.")
+
     g.text(" ")
     click.pause()
+    builder.create_build_dir()
 
     g.cyan_text("Building README.rst")
     builder.build_readme()
@@ -388,9 +403,8 @@ def release(g, project, giver, test_pypi, verbose, target):
             "please check the error.log file for more details.")
     else:
         g.green_text("Build completed successfully!")
-    # -------------------------------- Package creation complete.
 
-    # Preview README.rst
+    # ---------------------------------- Preview README.rst
     g.text(" ")
     preview_readme = g.prompt(
         "Preview README.rst file? ", True,
@@ -412,7 +426,7 @@ def release(g, project, giver, test_pypi, verbose, target):
         pypi="https://pypi.python.org/pypi/",
         test_pypi="https://testpypi.python.org/pypi/", )
 
-    # Build files
+    # ---------------------------------- Build files
     g.text(" ")
     g.cyan_text("Pyrelease is ready to build your package distros.")
     g.text(" ")
@@ -425,15 +439,15 @@ def release(g, project, giver, test_pypi, verbose, target):
     #     g.green_text("There were errors during the build, "
     #                  "look at the debug.log for more details.")
 
+    # ---------------------------------- Open file explorer
     g.text(" ")
-    g.yellow_text("Have a look at your new package.")
-    click.launch(os.path.abspath(builder.build_dir))
+    g.cyan_text("Your package is ready to upload! Have a look..")
 
-    # Upload files
-    g.text(" ")
-    g.cyan_text("Pyrelease is ready to upload your package!")
+    click.launch(os.path.abspath(builder.build_dir))
     g.text(" ")
     click.pause()
+
+    # ---------------------------------- Upload files
     g.text(" ")
     builder.use_test_server = g.prompt(
         "Use test PyPi server?", True,
