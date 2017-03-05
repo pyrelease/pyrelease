@@ -28,47 +28,71 @@ class PyPackage(object):
     PACKAGE_FILES = {}
 
     def __init__(self, path, verbose=False):
+
+        # Turns on third party library console messages
+        # TODO: This could probably be in `Builder`
         self.verbose = verbose
 
-        self.target_file = find_package(path)  # If package no good, PANIC
+        # The relative path to the target file
+        self.target_file = find_package(path)
 
+        # The absolute path to the target directory
+        self.resolved_path = resolve_path(self.target_file)
+
+        # The name of the package to be released
         self.name = get_name(self.target_file)
 
-        self.resolved_path = resolve_path(self.target_file)  # Absolute dir of package
-
+        # The version number as set in the __version__ variable
         self.version = get_version(self.target_file)
 
+        # Returns a dict containing config file data, such as
+        # the .pypirc and .gitconfig data
         self.user_info = get_user_info()  # Log each step and ensure is valid
 
+        # The name of the developer or author of the release
         self.author = get_author(self)
 
+        # The authors email
         self.author_email = get_author_email(self)
 
+        # A dict containing a description of the package
+        # and a variable containing the imported file.
         self.package_info = get_package_info(self.name, self.resolved_path)  # Show preview, cancel if no good
 
+        # The package description as taken from package info.
         self.description = self.package_info['description']
 
+        # Returns True if the target package is a single file.
         self.is_single_file = os.path.isfile(self.target_file)
 
+        # A list of dependencies to to be added to requirements.txt
         self.requirements = get_dependencies(self.target_file)
 
+        # Returns True if the target has a `main` function
         self.is_script = has_main_func(self.target_file)
 
+        # For the MANIFEST.in file
         self.find_packages = "" if self.is_single_file else ", find_packages"
+
+        # The license the package will be released under.
+        self.license = get_license(self.target_file)
 
         self.errors = None
 
-        self.license = get_license(self.target_file)
-
     @property
     def is_data_files(self):
+        """Returns True if there is a data folder in the resolved path
+         """
         return os.path.exists(os.path.join(self.resolved_path, 'data'))
 
     @property
     def url(self):
+        """Returns the URL that the package will be hosted on"""
         return 'https://pypi.python.org/pypi/' + self.name
 
     def jsonize(self):
+        """Returns a dict of the PyPackage attributes and their values
+         """
         rv = {}
         for k, v in self.__dict__.items():
             if k.startswith("_"):
