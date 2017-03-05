@@ -37,6 +37,21 @@ def view_on_pypi(g, builder, package, urls):
     click.pause()
 
 
+def choose_license(g, default="MIT"):
+    from .licenses import LICENSES
+    for l_name in LICENSES.keys():
+        g.text(" ")
+        g.red_text("%s" % l_name)
+
+    g.text(" ")
+    choice = g.prompt(
+        "Choose a License", default,
+        "Choose from the list, if the license you want isn't "
+        "there let us know so we can add it.! Make sure you type "
+        "the name exactly how you see it.")
+    return choice
+
+
 def register_package(g, builder):
     """Giver runs and wizard runs both use this prompt."""
     test_pypi = builder.use_test_server
@@ -199,10 +214,9 @@ def release(g, project, giver, test_pypi, verbose, target):
         "Is %s the name you want to go with for your release? "
         "We try to guess it based on the name of the file or "
         "directory you ran PyRelease in so it's not always what "
-        "you may want. If you want, you can rename you script "
-        "and next time you run PyRelease it will automatically "
-        "pick up the change." % package.name)
-    rv = str("".join([i for i in str(package.name) if i.isalpha()]))
+        "you may want. Only letters and numbers and decimals are"
+        "allowed in the name." % package.name)
+    rv = str("".join([i for i in str(package.name) if i.isalpha() or i == "."]))
     package.name = rv
 
     # ---------------------------------- Package short description
@@ -210,8 +224,8 @@ def release(g, project, giver, test_pypi, verbose, target):
     package.description = g.prompt(
         "Short Description:", package.description,
         "PyPackage tries to automatically fill the package "
-        "description based on the first doc-string found "
-        "in the target module. Sometimes this doesn't "
+        "description based on the doc-string found in the "
+        "first function listed in __all__. This doesn't "
         "always turn out right, so here's your chance to "
         "fix it. This is the same description that will "
         "show on the PyPi package index so try and make "
@@ -245,29 +259,32 @@ def release(g, project, giver, test_pypi, verbose, target):
         "reach you with feedback and support.")
 
     # ---------------------------------- Verify License
+
     g.text(" ")
     _license = package.license
-    proceed = g.prompt(
-        "Choose a License -", True,
-        "Having a license for your source code is always a good idea. "
-        "By default PyRelease will add an MIT license to your source if "
-        "no `__version__` variable was found in your module. However "
-        "you can choose from a few others that we have. If you want a "
-        "license that's not in this list, enter None and copy a license "
-        "file into the package directory before you build and it will "
-        "be included. Or let us know and we can add the license you want. "
-        "Yes to pick a license or no to skip.")
-    if proceed:
-        for l_name in LICENSES.keys():
-            g.text(" ")
-            g.red_text("%s" % l_name)
 
-        g.text(" ")
-        _license = g.prompt(
-            "Choose a License", "MIT",
-            "Choose from the list, if the license you want isn't "
-            "there let us know so we can add it.! Make sure you type "
-            "the name exactly how you see it.")
+    if _license:
+        proceed = g.prompt(
+            "Found license %s" % _license, True,
+            "PyRelease has found a license variable in your package. Is %s "
+            "the license you want to use?" % _license)
+        if not proceed:
+            _license = choose_license(g, _license)
+
+    else:
+        proceed = g.prompt(
+            "Choose a License -", True,
+            "Having a license for your source code is always a good idea. "
+            "By default PyRelease will add an MIT license to your source if "
+            "no `__version__` variable was found in your module. However "
+            "you can choose from a few others that we have. If you want a "
+            "license that's not in this list, enter None and copy a license "
+            "file into the package directory before you build and it will "
+            "be included. Or let us know and we can add the license you want. "
+            "Yes to pick a license or no to skip.")
+        if proceed:
+            _license = choose_license(g)
+
     package.license = _license
 
     g.text(" ")
@@ -279,6 +296,9 @@ def release(g, project, giver, test_pypi, verbose, target):
            package.name)
 
     def list_dependencies():
+        if not package.requirements:
+            g.text(" ")
+            g.red_text("No dependencies detected")
         for dep in package.requirements:
             g.text(" ")
             g.red_text(dep)
@@ -337,7 +357,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ----------------------------------Set the build directory
     g.text(" ")
     build_dir = g.prompt(
-        "Build directory", builder.build_dir,
+        "Build directory", os.path.relpath(builder.build_dir),
         "You can specify a directory that you would like your "
         "package to be created in. This can also be handed in "
         "from the command line with the '-T' or '--target' "

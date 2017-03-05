@@ -106,11 +106,15 @@ class Builder(object):
 
     def build_setup(self):
         """Build out the setup.py file for the release."""
+        console_scripts = None
         if self.package.is_script:
-            console_scripts = setup_py.CONSOLE_SCRIPTS.format(
-                self.package.name, self.package.name)
-        else:
-            console_scripts = ''
+            if os.path.basename(self.package.target_file) == '__init__.py':
+                console_scripts = setup_py.PACKAGE_CONSOLE_SCRIPTS.format(
+                    self.package.name, self.package.name, '__init__'
+                )
+            else:
+                console_scripts = setup_py.CONSOLE_SCRIPTS.format(
+                    self.package.name, self.package.name)
 
         if self.package.is_single_file:
             py_modules = "py_modules=['%s']," % self.package.name
@@ -210,8 +214,18 @@ class Builder(object):
             logger.error("Package is more than one file.")
             # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
             raise NotImplementedError('only single files supported')
-        logger.info("%s file is being copied to %s", self.package.target_file, self.build_dir)
-        copy_to_dir(self.package.target_file, self.build_dir)
+        what_to_copy = self.package.target_file
+        if what_to_copy == '__init__.py':
+            target_dir = os.path.join(self.build_dir, self.package.name)
+            try:
+                os.mkdir(target_dir)
+            except OSError:
+                pass
+            logger.info("%s folder is being copied to %s", what_to_copy, self.build_dir)
+            copy_to_dir(what_to_copy, target_dir)
+        else:
+            logger.info("%s file is being copied to %s", what_to_copy, self.build_dir)
+            copy_to_dir(what_to_copy, self.build_dir)
 
     def create_build_dir(self):
         build_to = self.build_dir

@@ -55,7 +55,7 @@ Once you have a copy of the source, you can install it with:
 
 
 .. _Github repo: https://github.com/{author}/{name}
-.. _tarball: https://github.com/{author}/{name}/tarball/master
+
 
 Usage
 =====

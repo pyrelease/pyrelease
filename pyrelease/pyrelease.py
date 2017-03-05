@@ -6,7 +6,8 @@ from distutils.version import LooseVersion
 
 from .helpers import find_package, get_author, get_author_email, \
     get_dependencies, get_license, get_name, get_package_info, \
-    get_user_info, get_version, has_main_func, resolve_path
+    get_user_info, get_version, has_main_func, resolve_path, \
+    InvalidPackage
 
 logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
@@ -34,7 +35,10 @@ class PyPackage(object):
         self.verbose = verbose
 
         # The relative path to the target file
-        self.target_file = find_package(path)
+        target = find_package(path)
+        if target is None:
+            raise InvalidPackage("Not a valid target.")
+        self.target_file = target
 
         # The absolute path to the target directory
         self.resolved_path = resolve_path(self.target_file)
@@ -57,7 +61,7 @@ class PyPackage(object):
 
         # A dict containing a description of the package
         # and a variable containing the imported file.
-        self.package_info = get_package_info(self.name, self.resolved_path)  # Show preview, cancel if no good
+        self.package_info = get_package_info(os.path.basename(self.target_file), self.resolved_path)  # Show preview, cancel if no good
 
         # The package description as taken from package info.
         self.description = self.package_info['description']

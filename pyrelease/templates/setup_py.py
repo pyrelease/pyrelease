@@ -44,3 +44,9 @@ CONSOLE_SCRIPTS = """entry_points={{
             '{0}={1}:main',
         ],
     }},"""
+
+PACKAGE_CONSOLE_SCRIPTS = """entry_points={{
+        'console_scripts': [
+            '{0}={1}.{2}:main',
+        ],
+    }},"""

@@ -7,7 +7,7 @@ import yaml
 
 __all__ = ["trabConfig"]
 __license__ = 'MIT'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 
 class trabConfig(object):
@@ -137,7 +137,3 @@ class trabConfig(object):
 
         """
         return trabConfig(file_path, auto_save, data="yaml")
-
-
-def main():
-    print("In main.")

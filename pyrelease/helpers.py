@@ -41,7 +41,6 @@ def find_package(what_to_package):
         logger.info("What to package ends with .py - (%s)", what_to_package)
         folder = os.getcwd()
         apath = os.path.join(folder, what_to_package)
-        # return apath
         return os.path.relpath(apath)
 
     if os.path.isdir(what_to_package) or what_to_package == '.':
@@ -139,8 +138,11 @@ def get_package_info(name, package_dir):
      This info is returned as a dict which also contains a pointer
      to the imported module.
      """
+    logger.info("called with - %s - %s", name, package_dir)
     mod = None
     description = ""
+    if name.endswith(".py"):
+        name = name[:-3]
     package_dir = os.path.abspath(os.path.dirname(package_dir))
     try:
         logger.info("Importing module - %s -", name)
@@ -216,6 +218,12 @@ def get_name(path):
         logger.error("Target is None..")
         exit()
     logger.info("Target: %s", path)
+    if os.path.basename(path) == '__init__.py':
+        dir_name = os.path.split(os.path.abspath(path))[-2]
+        rv = os.path.basename(dir_name)
+        logger.info("get_name using directory name for __init__.py result: %s", str(rv))
+        return rv
+
     if path.endswith('.py'):
         rv = os.path.split(path)[-1].rstrip('.py')
         logger.info("get_name found a name from a *.py file: %s", str(rv))
@@ -301,7 +309,6 @@ def get_dependencies(target):
 
     # logger.info("Found dependencies. (%s)", "\n".join(deps))
     # return deps
-
 
     # conversions = dict(yaml='pyyaml')
     # module = ast.parse(open(target).read())
