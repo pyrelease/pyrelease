@@ -36,6 +36,30 @@ Instructions::
 simple_example
 --------------
 
+An example of a config parser style package.
+
+Instructions::
+
+    $ cd examples/simple_example
+
+    $ pyrelease .
+
+*Follow the wizard*
+
+ **Stop after the build phase**
+::
+
+    $ cd trabconfig.0.1.1
+
+    $ pip install . --user
+
+    $ python
+
+    >>> import trabconfig
+
+    >>> config = trabconfig.trabConfig()
+
+
 
 cowsay
 ------
