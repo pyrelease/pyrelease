@@ -36,13 +36,14 @@ Instructions::
 simple_example
 --------------
 
-An example of a config parser style package.
+An example of a config parser style package. The filename doesn't match the directory
+it's under so we need to target trabconfig.py directly.
 
 Instructions::
 
     $ cd examples/simple_example
 
-    $ pyrelease .
+    $ pyrelease trabconfig.py
 
 *Follow the wizard*
 
@@ -83,11 +84,9 @@ To install this one:
 
     $ cd ~
 
-    ~ $ helloworld
-    Hello World!
+    ~ $ cowsay Hello
 
-    ~ $ helloworld Friend
-    Hello Friend!
+    ~ $ cowsay Hello World
 
 
 
