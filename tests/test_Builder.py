@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os
 import unittest
-
+import shutil
 
 from pyrelease.builder import Builder
 from pyrelease.pyrelease import PyPackage
@@ -16,7 +16,7 @@ class TestBuilder(unittest.TestCase):
 
     def tearDown(self):
         try:
-            os.rmdir(os.path.abspath(self.builder.build_dir))
+            shutil.rmtree(os.path.abspath(self.builder.build_dir))
         except OSError:
             pass
 
