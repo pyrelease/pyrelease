@@ -43,6 +43,56 @@ not pee in my cereal.
 - pyyaml_
 
 
+Why should I use this?
+----------------------
+
+PyPackage is intended to be used on single file python scripts to quickly
+create distributions based on information gathered form that file alone.
+
+For instance, it's not uncommon to see a main function in a file such as
+this, PyPackage will see that and make it the entry point of your release.
+
+Another example is a file that contains useful functions and/or classes
+that you've kept kept grouped together. PyPackage won't create a script
+entry point in this case but will make your release importable using the
+standard import conventions.
+
+This is great for files that are useful amongst co-workers or friends and
+allows you to make them pip installable in *seconds* and creates all the
+relevant packaging material to go with it.
+
+This is what you get when you run your script through PyPackage.
+
+- A README.rst that is compatible on PyPi *and* GitHub
+- A proper setup.py file that provides an entry point for your `main` function
+- A MANIFEST.in file that knows to include a `data` folder
+- Auto LICENSE.md creation based on package meta or selected from CLI
+- An auto-generated requirements list for your package dependencies
+- wheels and source distros are created automatically
+- Finished package is created in a folder with the version as part of the name for simplicity
+- *Your package becomes pip installable in seconds with a homepage on PyPi that isn't totally mangled*
+
+**tl;dr**
+
+Turn this::
+
+    - folder
+        - myscript.py
+
+into this::
+
+    - folder
+        - myscript.0.1.1
+            - myscript.py
+            - README.rst
+            - MANIFEST.in
+            - LICENSE.md
+            - requirements.txt
+            - setup.py
+        - myscript.py
+
+Automagically.
+
 Installation
 ------------
 
@@ -92,8 +142,8 @@ or just::
     $ pyrelease [path]
 
 
-There's an example script in the tests directory that gives a (poor) example of
-how it works::
+Try one of the scripts from the examples folder to get an idea of how
+it works::
 
     $ cd examples/simple_example
     $ pyrelease-cli trabconfig.py
@@ -111,9 +161,79 @@ the package name is `mypackage` and has a `main` function in the script,
 it can be run from the command line by typing `$ mypackage`, which will
 run whatever was in that `main` method.
 
+If there's no main function then no entry point is made and the `package`
+will be setup to run and install like any other python `package`. From
+there you can use the library in python by importing as usual.
+
+
+Where are the switches?
+-----------------------
+
+PyRelease is meant to be as simple as possible so it attempts to gather
+information on the package as "naturally" as it can. User information is
+fetched from user config files in the home directory, in particular it
+checks for a .gitconfig and a .pypirc file, the latter of which is required
+to upload your package to PyPi with PyRelease. It also get info from the
+source file itself, in particular it looks for a few magic variables
+and the docstring of the first callable found in the `__all__` magic
+variable.
+
+Here's a list of the things you can do to alter PyReleases behavior when
+interacting with your release:
+
+Alter magic variable.
+
+ **__all__**
+    - The first function found in this list will have its docstring used as the packages short description *by default*, the short description can be changed if there's an error so don't worry.
+
+ **__license__**
+    - If this is set PyPackage will attempt to include it with the package. This works using a template engine so more licenses can be added rather easily if requested. Currently included licenses can be found in the `pyrelease/licenses/` folder.
+
+ **__version__**
+    - If this is set then PyRelease will make this the default version when creating your release.
+
+ **def main():**
+    - If your package has a main function it becomes the script entry point once installed and invoked from the command line.
+
+ **data** folder
+    - If there is a folder named `data` alongside the script it will be included in the MANIFEST and packaged alongside the rest of the files in the release.
+
+
+In a situation where you have a package that exists where the code is
+located in __init__.py and the folder is the name of the package, then
+PyRelease will name your release based on the folder name and include
+the folder in the package release with the same layout. For example::
+
+    - croutonlib/
+        - __init__.py
+
+Now assuming `__version__` is defined in `__init__.py` to be '1.1.1', here's
+how you could call pyrelease with just a dot from the `croutonlib/` directory::
+
+    $ pyrelease .
+
+Which would give you::
+
+    - croutonlib/
+        - __init__.py
+        - croutonlib.1.1.1/
+            - croutonlib/
+                - __init__.py
+            - README.rst
+            - MANIFEST.in
+            - LICENSE.md
+            - requirements.txt
+            - setup.py
+
+You can also call pyrelease with a dot in a directory where instead of the code
+being in the `croutonlib/__init__.py` file it's in a file that shares its
+name with its parent folder, for example 'megascript/megascript.py`
+
 
 Giver Mode
 ----------
+
+** Giver mode is out of order right now kiddos. Sorry!**
 
 Cause sometime you just want it to hurry up and giver. The command line
 switch --giver or just -G activates it. Here's an example::
