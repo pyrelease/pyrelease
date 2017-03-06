@@ -54,6 +54,8 @@ class Builder(object):
             build_dir = os.path.join(
                 os.getcwd(), (self.package.name + "." + str(self.package.version)))
         self.build_dir = os.path.abspath(build_dir)
+        self.built = False
+        self.uploaded = False
 
     def build_package(self):
         """Creates the release directory and copies your module as well
@@ -73,6 +75,7 @@ class Builder(object):
                 logger.error("File exists error in build_package: (%s)", exc_info=True)
 
         self.copy_files()
+        self.built = True
 
     def build_readme(self):
         """Builds your projects README.rst file from a template."""
@@ -106,7 +109,7 @@ class Builder(object):
 
     def build_setup(self):
         """Build out the setup.py file for the release."""
-        console_scripts = None
+        console_scripts = ""
         if self.package.is_script:
             if os.path.basename(self.package.target_file) == '__init__.py':
                 console_scripts = setup_py.PACKAGE_CONSOLE_SCRIPTS.format(
@@ -116,7 +119,10 @@ class Builder(object):
                 console_scripts = setup_py.CONSOLE_SCRIPTS.format(
                     self.package.name, self.package.name)
 
-        if self.package.is_single_file:
+        if os.path.basename(self.package.target_file) == '__init__.py':
+            py_modules = ''
+            packages = "packages=['%s']," % self.package.name
+        elif self.package.is_single_file:
             py_modules = "py_modules=['%s']," % self.package.name
             packages = ''
         else:
@@ -330,6 +336,7 @@ class Builder(object):
             logger.info("Project has been uploaded to the Pypi server!")
             logger.debug("Result: %s", repr(response))
             self.parse_response(response)
+        self.uploaded = True
         return response
 
     def upload_to_pypi_test_site(self, suppress=False):
@@ -345,6 +352,7 @@ class Builder(object):
             logger.debug("Result: %s", repr(response))
             # TODO: This needs to be better..
             self.parse_response(response)
+        self.uploaded = True
         return response
 
     @property

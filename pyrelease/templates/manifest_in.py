@@ -6,5 +6,5 @@ include LICENSE.md
 {include_data_files}
 
 # Include the docs
-{include_docs_folder}
+# {include_docs_folder}
 """

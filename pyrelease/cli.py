@@ -27,7 +27,7 @@ logger.addHandler(handler)
 
 def view_on_pypi(g, builder, package, urls):
     g.text(" ")
-    g.text("Here, have a look at your new package on PyPi.")
+    g.yellow_text("Have a look at your new package online!")
     g.text(" ")
     if builder.use_test_server:
         click.launch(urls['test_pypi'] + package.name)
@@ -213,7 +213,7 @@ def release(g, project, giver, test_pypi, verbose, target):
         "Release name:", package.name,
         "Is %s the name you want to go with for your release? "
         "We try to guess it based on the name of the file or "
-        "directory you ran PyRelease in so it's not always what "
+        "directory you ran PyRelease in, so it's not always what "
         "you may want. Only letters and numbers and decimals are"
         "allowed in the name." % package.name)
     rv = str("".join([i for i in str(package.name) if i.isalpha() or i == "."]))
@@ -383,36 +383,23 @@ def release(g, project, giver, test_pypi, verbose, target):
 
     g.text(" ")
     click.pause()
-    builder.create_build_dir()
 
-    g.cyan_text("Building README.rst")
-    builder.build_readme()
-    g.green_text("Complete.")
-
-    g.text(" ")
-    g.cyan_text("Building LICENSE.md")
-    builder.build_license()
-    g.green_text("Complete.")
-
-    g.text(" ")
-    g.cyan_text("Building MANIFEST.in")
-    builder.build_manifest()
-    g.green_text("Complete.")
+    builds = [
+        (builder.create_build_dir, "Directories"),
+        (builder.build_readme, "README.rst"),
+        (builder.build_license, "LICENSE.md"),
+        (builder.build_manifest, "MANIFEST.in"),
+        (builder.build_requirements, "requirements.txt"),
+        (builder.build_setup, "setup.py"),
+        (builder.build_package, "Finished Release")
+    ]
 
     g.text(" ")
-    g.cyan_text("Building requirements.txt")
-    builder.build_requirements()
-    g.green_text("Complete.")
-
-    g.text(" ")
-    g.cyan_text("Building setup.py")
-    builder.build_setup()
-    g.green_text("Complete.")
-
-    g.text(" ")
-    g.cyan_text("Creating package")
-    builder.build_package()
-    g.green_text("Complete!")
+    with click.progressbar(builds,
+                           label="Status") as jobs:
+        for build in jobs:
+            g.green_text(" Building %s" % build[1])
+            build[0]()
 
     errors = package.errors
     g.text(" ")
@@ -427,7 +414,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ---------------------------------- Preview README.rst
     g.text(" ")
     preview_readme = g.prompt(
-        "Preview README.rst file? ", True,
+        "Preview README.rst file? ", False,
         "You can preview your auto-generated README.rst file now "
         "if you'd like. This will open up your default browser to "
         "a preview of the file. When you're ready to proceed again, "
@@ -449,9 +436,20 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ---------------------------------- Build files
     g.text(" ")
     g.cyan_text("Pyrelease is ready to build your package distros.")
+
     g.text(" ")
-    click.pause()
-    builder.build_distros(suppress=True)
+    build_distros = g.prompt(
+        "Build Distros?", True,
+        "For your release to be installable it needs to be built. "
+        "The next step will build your project into an installable "
+        "package, which can be uploaded or shared and installed via"
+        "`python setup.py install` or `pip install . `")
+
+    if build_distros:
+        g.text(" ")
+        g.yellow_text("    Building..")
+        g.text(" ")
+        builder.build_distros(suppress=True)
 
     if builder.success:
         g.green_text("Builds finished without error.")
@@ -461,13 +459,15 @@ def release(g, project, giver, test_pypi, verbose, target):
 
     # ---------------------------------- Open file explorer
     g.text(" ")
-    g.cyan_text("Your package is ready to upload! Have a look..")
-
+    g.cyan_text("Your release has been built! Take a look..")
     click.launch(os.path.abspath(builder.build_dir))
+
     g.text(" ")
     click.pause()
 
     # ---------------------------------- Upload files
+    g.text(" ")
+    g.cyan_text("You're package is ready to be uploaded.")
     g.text(" ")
     builder.use_test_server = g.prompt(
         "Use test PyPi server?", True,
@@ -475,37 +475,65 @@ def release(g, project, giver, test_pypi, verbose, target):
         "PyPi test site before committing to the regular site. "
         "Using the test site requires you to register the "
         "package first, but don't worry, we do that part too. "
-        "[Y]es for test server or [n] for regular PyPi.")
+        "Yes for test server or no for regular PyPi.")
 
-    # TODO: Shorten this stuff.
     if builder.use_test_server:
+
+        g.text("")
+        g.green_text("Registering Package")
+
+        # This is a function so giver can use it.
+        g.text("")
         register_package(g, builder)
-        builder.upload_to_pypi_test_site()
-    else:
-        builder.upload_to_pypi()
 
-    g.text(" ")
-    if not builder.success:
-        # TODO: Figure out any error codes..
-        # g.red_text("Upload completed with errors. "
-        #            "Did you remember to set the correct version?")
-        pass
-    else:
-        g.green_text("Upload completed successfully!")
-    g.text(" ")
-    view_on_pypi(g, builder, package, URLS)
-    g.text(" ")
-    if builder.use_test_server:
-        upload = g.prompt(
-            "Ready for upload?", True,
-            "Are you're ready to put your release on Pypi? saw anything "
-            "you want to fix first you can always re-run PyRelease after.")
-        if upload:
-            builder.use_test_server = False
-            builder.upload_to_pypi()
+        # Confirm upload to TEST SERVER
+        g.text("")
+        commit = g.prompt("Upload?", True,
+                          "Continue to upload to the test site.")
+
+        if commit:
+            # Upload to TEST
+            g.text(" ")
+            g.green_text("Uploading to PyPi TEST site..")
+            builder.upload_to_pypi_test_site(suppress=verbose)
+
+            # Show in browser
             g.text(" ")
             view_on_pypi(g, builder, package, URLS)
 
+    # Confirm upload to MAIN SERVER
+    g.text("")
+    confirm = g.prompt("Upload to PyPi MAIN SERVER?", False,
+                       "If you're satisfied with your release then you can "
+                       "now upload it to PyPi, this is your last chance to "
+                       "make any changes to your package.")
+
+    if confirm:
+        # Upload to MAIN
+        g.text("")
+        proceed = g.prompt("You're really, really, sure?", True)
+
+        if proceed:
+            g.text("")
+            g.green_text("Uploading to PyPi..")
+            builder.upload_to_pypi(suppress=verbose)
+            g.text(" ")
+            view_on_pypi(g, builder, package, URLS)
+
+    # Get errors etc..
+    g.text(" ")
+    if builder.uploaded:
+        if not builder.success:
+            # TODO: Figure out any error codes..
+            # g.red_text("Upload completed with errors. "
+            #            "Did you remember to set the correct version?")
+            pass
+        else:
+            g.text(" ")
+            g.yellow_text("    All uploads completed successfully!")
+
+    click.pause("Press any button to finish.")
+    g.text(" ")
     g.print_footer()
 
 
