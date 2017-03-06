@@ -1,16 +1,17 @@
 PyRelease -Alpha-
 =================
 
-A simple single file package builder. Automatically creates all the files
-required for a basic PyPi package and uploads to either the test or the
-regular PyPi servers.
+Sick of having 40 files in a python repo to release some code into the world?
+PyPackage generates all the boilerplate code that the python packaging world
+decides we need and publishes your package to PyPi. A link to the blog_ that
+started it all.
 
 *Tested on Python 3.6. and Python 2.7*
 
 **Features**
 
 - CLI interface with setup wizard for creating packages interactively
-- Automatically creates a Github and PyPi compatible readme file with browser preview
+- Automatically creates a Github and PyPi compatible README file with browser preview
 - Automatic entry-point script creation if file has main function
 - Automatic setup.py file creation
 - Automatically detects and includes data folder
@@ -23,10 +24,6 @@ regular PyPi servers.
 This doesn't cover everything, check out the code if you want to see more.
 
 
-Note: As of right now builds don't clean up after themselves, so you may
-have to clean up any old ones yourself. They are tagged with the version
-and will be in the same folder as the package you're attempting to build.
-
 **DISCLAIMER:**
 
 PyRelease is in alpha stage so if something doesn't seem to be working right, it
@@ -35,27 +32,13 @@ hesitate to leave one, but take care to make it as detailed as possible so as to
 not pee in my cereal.
 
 
-**PyRelease uses these third party libraries**
-
-- Click_
-- restview_
-- twine_
-- pyyaml_
-
-
 Why should I use this?
 ----------------------
 
-PyPackage is intended to be used on single file python scripts to quickly
-create distributions based on information gathered form that file alone.
-
-For instance, it's not uncommon to see a main function in a file such as
-this, PyPackage will see that and make it the entry point of your release.
-
-Another example is a file that contains useful functions and/or classes
-that you've kept kept grouped together. PyPackage won't create a script
-entry point in this case but will make your release importable using the
-standard import conventions.
+As an example, you have a python file that you have found to be useful
+and would like to put together all the supporting files to make it available
+on PyPi. Simply point PyPackage at the file and in seconds you'll have a
+release that can usually be put straight onto PyPi with little to no modification.
 
 This is great for files that are useful amongst co-workers or friends and
 allows you to make them pip installable in *seconds* and creates all the
@@ -64,11 +47,11 @@ relevant packaging material to go with it.
 This is what you get when you run your script through PyPackage.
 
 - A README.rst that is compatible on PyPi *and* GitHub
-- A proper setup.py file that provides an entry point for your `main` function
+- A proper setup.py file that provides an entry point to the scripts `main` function
 - A MANIFEST.in file that knows to include a `data` folder
-- Auto LICENSE.md creation based on package meta or selected from CLI
 - An auto-generated requirements list for your package dependencies
 - wheels and source distros are created automatically
+- Things like license and version auto-discovered from the code
 - Finished package is created in a folder with the version as part of the name for simplicity
 - *Your package becomes pip installable in seconds with a homepage on PyPi that isn't totally mangled*
 
@@ -92,6 +75,14 @@ into this::
         - myscript.py
 
 Automagically.
+
+
+**PyRelease uses these third party libraries**
+
+- Click_
+- restview_
+- twine_
+- pyyaml_
 
 Installation
 ------------
@@ -415,3 +406,4 @@ MIT - 2017 illume
 .. _restview: https://mg.pov.lt/restview/
 .. _twine: https://pypi.python.org/pypi/twine
 .. _pyyaml: https://github.com/yaml/pyyaml
+.. _blog: http://renesd.blogspot.ca/2017/02/what-would-python-packaging-zero-look.html
