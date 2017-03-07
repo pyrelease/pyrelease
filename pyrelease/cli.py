@@ -10,7 +10,7 @@ logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
 
 # File handler
-handler = logging.FileHandler(os.path.join(os.getcwd(), 'error.log'), 'w')
+handler = logging.FileHandler(os.path.join(os.getcwd(), 'build.log'), 'w')
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
     '[%(levelname)s] <%(funcName)s> <%(module)s> - %(message)s  @ (%(asctime)s)')
@@ -67,9 +67,29 @@ def register_package(g, builder):
     if proceed:
         g.green_text("Enter your PyPi %s password into Twine to "
                      "register your package" % ("", "TEST server")[test_pypi])
-        builder.register_pypi_test_package()
+        response = builder.register_pypi_test_package()
         g.text(" ")
         g.green_text("Registration complete.")
+        return response
+
+
+# Helper function
+def create_pypirc(g, package, builder):
+    g.text(' ')
+    username = g.prompt(
+        "Username:", package.author,
+        "Enter your Pypi username here. If you don't have an "
+        "account you can follow this link to create one. "
+        "https://pypi.python.org/pypi?%3Aaction=register_form ")
+
+    g.text(' ')
+    validate = g.prompt(
+        "Continue?", True,
+        "You have entered %s, is this correct?" % username)
+    if validate:
+        return builder.build_pypirc(username)
+    else:
+        create_pypirc(g, package, builder)
 
 
 def giver(g, package, target, test_pypi):
@@ -83,10 +103,6 @@ def giver(g, package, target, test_pypi):
 
         g.print_header()
         g.red_text("   Giver Mode %s" % ("", "TEST SERVER")[test_pypi])
-        g.text(" ")
-
-        if not os.path.exists(builder.build_dir):
-            builder.create_build_dir()
 
         message = [
             "Preparing data",
@@ -94,8 +110,11 @@ def giver(g, package, target, test_pypi):
             "Collecting data",
             "Prepping release",
         ]
+
+        g.text(" ")
         msg = random.choice(message)
         with click.progressbar(length=7, label=msg) as bar:
+            builder.create_build_dir()
             bar.update(1)
             builder.build_readme()
             bar.update(1)
@@ -187,25 +206,23 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ---------------- Clear the screen and start wizard
     g.cls()
 
+    # ---------------------------------- Load from project file?
+    if os.path.exists('release.info'):
+        g.text(" ")
+        load_savefile = g.prompt(
+            "Load save file?", True,
+            "PyRelease has detected a save file in the current directory.")
+
+        if load_savefile:
+            package.load()
+
+    # ---------------------------------- Wizard intro
     g.text(' ')
     g.title("PyRelease wizard")
     g.green_text("This wizard will help guide you through setting up %s "
                  "for release on pypi. Don't worry, it's easy! "
                  "Press ctrl-D at any time to exit to the terminal" %
                  package.name)
-
-    # ---------- Check for a .pypirc file. It's required to upload to pypi.
-    g.text(' ')
-    if not os.path.exists(os.path.expanduser('~/.pypirc')):
-        proceed = g.prompt(
-            "Continue without .pypirc? -", True,
-            "No .pypirc file found. You must create one if you want to upload "
-            "to Pypi. Please refer to https://docs.python.org/2/distutils/pack"
-            "ageindex.html#pypirc for more info. You can continue without it "
-            "but you won't be able to upload to PyPi.")
-        if not proceed:
-            g.print_footer()
-            click.Abort()
 
     # ---------------------------------- Verify project name
     g.text(" ")
@@ -236,13 +253,8 @@ def release(g, project, giver, test_pypi, verbose, target):
     version = g.prompt(
         "Version", package.version or "0.1.0",
         "%s is set to version %s. Enter a new version or press enter "
-        "to continue." % (package.name, package.version))
-
-    result = package.version = version
-    if result is None:
-        g.abort(
-            "Invalid version. You must choose a version that is "
-            "higher than, or equal to your current version.")
+        "to continue." % (package.name, package.version), allow_none=False)
+    package.version = version
 
     # ---------------------------------- Authors name
     g.text(" ")
@@ -324,6 +336,17 @@ def release(g, project, giver, test_pypi, verbose, target):
             if confirm:
                 break
 
+    # ----------------------- Save project?.
+    g.text(" ")
+    save_package = g.prompt(
+        "Save project setting?", True,
+        "PyRelease can save your configuration into a release.info file "
+        "that can be used for future builds of %s" % package.name)
+    if save_package:
+        package.save()
+        g.text(" ")
+        g.cyan_text("    File saved.")
+
     # ----------------------- Load up the Builder.
     g.text(" ")
     g.green_text("Loading builder.")
@@ -331,9 +354,26 @@ def release(g, project, giver, test_pypi, verbose, target):
 
     # ---------------------------------- Go through config files
     g.text(' ')
-    g.text("PyRelease will now attempt to locate any config files")
+    g.text(' ')
+    g.cyan_text("PyRelease will now attempt to locate any config files.")
 
-    for key, klass in package.user_info.items():
+    # ---------- Check for a .pypirc file. It's required to upload to pypi.
+    g.text(' ')
+    if not os.path.exists(os.path.expanduser('~/.pypirc')):
+        g.red_text("    No .pypirc detected.")
+        g.text(' ')
+        proceed = g.prompt(
+            "Create .pypirc?", True,
+            "Would you like to create a .pypirc with the wizard? You can "
+            "continue without it but you won't be able to upload to PyPi. "
+            "https://docs.python.org/2/distutils/packageindex.html#pypirc")
+
+        # Create the .pypirc
+        if proceed:
+            create_pypirc(g, package, builder)
+            package.update_user_info()
+
+    for key, config in package.user_info.items():
         choices = dict(
             pypirc="~/.pypirc - Used for uploading to PyPi. "
                    "*Needed if you also want to upload to PyPi.",
@@ -345,10 +385,10 @@ def release(g, project, giver, test_pypi, verbose, target):
         g.red_text("\n * Detected a %s file." % key)
 
         # TODO: Fix me, not all configs are the same..
-        name = g.prompt("Username: ", klass.author or "None",
+        name = g.prompt("Username: ", config.author or "None",
                         choices[key], step=False)
 
-        email = g.prompt("Email ", klass.author_email or "None",
+        email = g.prompt("Email ", config.author_email or "None",
                          step=False)
 
         package.user_info[key].author = name
@@ -376,8 +416,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     # Create the dir, will safely rename if path already exists
 
     # ---------------------------------- Build all packages.
-    # TODO: Fix error reporting on this part and put some hooks
-    # between the calls
+    # TODO: Fix error reporting on this part and put some hooks between the calls
     g.text(" ")
     g.cyan_text("Pyrelease is ready to build your package.")
 
@@ -482,8 +521,8 @@ def release(g, project, giver, test_pypi, verbose, target):
         g.text("")
         g.green_text("Registering Package")
 
-        # This is a function so giver can use it.
         g.text("")
+        # This is a function so giver can use it.
         register_package(g, builder)
 
         # Confirm upload to TEST SERVER
@@ -496,19 +535,21 @@ def release(g, project, giver, test_pypi, verbose, target):
             g.text(" ")
             g.green_text("Uploading to PyPi TEST site..")
             builder.upload_to_pypi_test_site(suppress=verbose)
-
-            # Show in browser
-            g.text(" ")
-            view_on_pypi(g, builder, package, URLS)
+            if not builder.errors:
+                # Show in browser
+                g.text(" ")
+                view_on_pypi(g, builder, package, URLS)
+            else:
+                g.red_text(builder.errors)
 
     # Confirm upload to MAIN SERVER
     g.text("")
-    confirm = g.prompt("Upload to PyPi MAIN SERVER?", False,
-                       "If you're satisfied with your release then you can "
-                       "now upload it to PyPi, this is your last chance to "
-                       "make any changes to your package.")
+    upload = g.prompt("Upload to PyPi MAIN SERVER?", False,
+                      "If you're satisfied with your release then you can "
+                      "now upload it to PyPi, this is your last chance to "
+                      "make any changes to your package.")
 
-    if confirm:
+    if upload:
         # Upload to MAIN
         g.text("")
         proceed = g.prompt("You're really, really, sure?", True)

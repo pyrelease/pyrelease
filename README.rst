@@ -240,17 +240,9 @@ or --test-pypi. Or just giver, whatever fills your boots.
 Tests
 -----
 
-There are tests located in the `pyrelease/tests` folder. I recommend running
-them with `nose` which can be installed with the included `requirements_dev.txt`
-file. From the directory that PyRelease is located enter these commands::
-
-    $ pip install -r requirements_dev.txt
-
-    $ python -m nose
-
-For a test coverage report use this command instead::
-
-    $ python -m nose --with-coverage --cover-package pyrelease
+There are tests located in the `pyrelease/tests` folder, there's a `tox.ini`
+file setup so you can just run with `tox` if you have it installed. Currently
+testing against Python versions 2.7, 3.5, and 3.6.
 
 
 Show All Console Messages
@@ -268,7 +260,9 @@ Logging
 If you experience any problems you can always check the error.log that will
 be in the same directory that you originally ran pyrelease. It clears after
 every session so if you want to save one or submit it you should change the
-name or move it to another location.
+name or move it to another location. The log itself is a straight dump of
+the logger set to INFO level, so everything you need to know should be in
+there.
 
 
 Pro-Tip
@@ -282,23 +276,18 @@ a file with it but I don't wanna be *that* guy, so ***make backups***)
 How does it Work?
 -----------------
 
-I have a small test package setup in `examples/simple_example/`. To try it
-out just run::
+There's a few examples setup in the `pyrelease/examples` directory, to try
+them out check out the readme. But you basically just run::
 
-    $ pyrelease-cli trabconfig.py
+    $ pyrelease .
 
-or::
+in the examples main dir.
 
-    $ pyrelease trabconfig.py
-
-Make sure you run it from inside `examples/simple_example/` . The finished
-files are saved by default into a folder tagged with the version and name
-of the package. It should include README.rst, LICENSE.md, MANIFEST.in,
+Each package produced should include README.rst, LICENSE.md, MANIFEST.in,
 and setup.py files, as well as copied over everything in the `data` folder
-(if there was one). PyRelease also creates a log file containing all the
-steps you made up to, and -hopefully- including the error. The file will
-be named `error.log` and found in the current working directory.
-For example, a file named my_script.py version 0.8.5 will produce a folder
+(if there was one). PyRelease also creates a log file containing  the error.
+The log is named `error.log` and found in the current working directory.
+For example, the file `my_script/my_script.py` version 0.8.5 will produce a folder
 named `/my_script.0.8.5`.
 
 

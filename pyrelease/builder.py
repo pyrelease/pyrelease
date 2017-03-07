@@ -7,7 +7,7 @@ import logging
 from shutil import copy as copy_to_dir
 from shutil import copytree as copy_dir
 
-from .templates import readme_rst, manifest_in, setup_py
+from .templates import readme_rst, manifest_in, setup_py, pypirc_ini
 from .shelltools import execute_shell_command, ignore_stdout, dir_context
 from .licenses import LICENSES
 from .compat import devnull
@@ -182,6 +182,14 @@ class Builder(object):
             f.writelines(rv)
         logger.info("License built..")
 
+    def build_pypirc(self, pypi_username):
+        rv = pypirc_ini.TEMPLATE.format(pypi_username=pypi_username)
+        home_dir = os.path.expanduser('~')
+        if not os.path.exists(os.path.expanduser('~/.pypirc')):
+            with open(os.path.join(home_dir, ".pypirc"), 'w') as f:
+                logger.info("Creating .pypirc file.")
+                f.write(rv)
+
     # TODO: Fix me :(
     # def build_docs(self):
     #     """Builds a pydoc API documention of your script in html"""
@@ -218,7 +226,6 @@ class Builder(object):
         """
         if not self.package.is_single_file:
             logger.error("Package is more than one file.")
-            # TODO: No reason why we couldn't glob all the .py files and send em all over too.. Panic for now.
             raise NotImplementedError('only single files supported')
         what_to_copy = self.package.target_file
         if what_to_copy == '__init__.py':
@@ -244,13 +251,16 @@ class Builder(object):
                 return "old_%s_%s" % (f_ver, f_name)
             else:
                 return "old_1_%s" % f_name
+
+        logger.info("Creating dir - (%s)", build_to)
         try:
-            logger.info("Creating dir - (%s)", build_to)
             os.mkdir(build_to)
-        except OSError:
+        except OSError as e:
+            msg = "Error creating dir - (%s)" % build_to
+            logger.error(msg + " - %s", exc_info=True)
             return False
         else:
-            logger.info("Crerated dir - (%s) - successfully", build_to)
+            logger.info("Created dir - (%s)", build_to)
             return build_to
 
     def make_all(self):
@@ -271,18 +281,23 @@ class Builder(object):
     def parse_response(self, response):
         """Trying some things out to handle shell errors better while
          calling Twine.."""
+        msg = False
         if response == 127:
             msg = "(%s) - Twine not installed.. Cancelled." % response
             logger.info(msg)
-            self.errors.append(msg)
         if response == 400:
             msg = "(%s) - Needs to upgrade version.." % response
             logger.debug(msg)
-            self.errors.append(msg)
         if response == 401:
             msg = "(%s) - Invalid login credentials." % response
             logger.debug(msg)
+        if response == 403:
+            msg = "(%s) - You are not authorized on this PyPi account." % response
+            logger.debug(msg)
+        if msg:
             self.errors.append(msg)
+        else:
+            logger.warning("Unknown response code from PyPi. (%s)", response)
 
     # TODO: This could probably go somewhere else.
     def preview_readme(self):
@@ -306,7 +321,7 @@ class Builder(object):
             logger.info("Uploading Project to the Pypi TESTING server..")
             cmd = "python setup.py register -r %s" % self.pypi_test_url
             response = execute_shell_command(cmd, suppress=suppress)
-            self.parse_response(response)
+            # self.parse_response(response)
         return response
 
     def upload_to_pypi(self, suppress=False):
