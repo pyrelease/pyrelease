@@ -5,24 +5,8 @@ import logging
 from functools import partial
 import click
 
-# ######## LOGGING #########
 logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
-
-# File handler
-handler = logging.FileHandler(os.path.join(os.getcwd(), 'error.log'), 'w')
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter(
-    '[%(levelname)s] <%(funcName)s> <%(module)s> - %(message)s  @ (%(asctime)s)')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-# Stream handler
-# s_handler = logging.StreamHandler()
-# s_handler.setLevel(logging.WARNING)
-# s_formatter = logging.Formatter('%(message)s')
-# s_handler.setFormatter(s_formatter)
-# logger.addHandler(s_handler)
 
 
 class Generator(object):
