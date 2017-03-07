@@ -26,7 +26,9 @@ setup(
     author='traBpUkciP',
     author_email='duroktar@gmail.com',
     description='A simple single file package builder.',
-    packages=['pyrelease'],
+    packages=['pyrelease',
+              'pyrelease.licenses',
+              'pyrelease.templates'],
     install_requires=install_requires,
     entry_points={
         'console_scripts': [

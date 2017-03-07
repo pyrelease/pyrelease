@@ -1,10 +1,10 @@
-# coding=utf-8
+#!/usr/bin/env
 from __future__ import print_function, absolute_import
 import os
 import json
 import logging
 
-from .helpers import find_package, get_author, get_author_email, \
+from pyrelease.helpers import find_package, get_author, get_author_email, \
     get_dependencies, get_license, get_name, import_target_package, \
     get_user_info, has_main_func, get_version, resolve_path, \
     InvalidPackage, get_description

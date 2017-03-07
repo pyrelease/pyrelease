@@ -1,4 +1,4 @@
-# coding=utf-8
+#!/usr/bin/env
 from __future__ import print_function, absolute_import
 import os
 import datetime
@@ -7,10 +7,10 @@ import logging
 from shutil import copy as copy_to_dir
 from shutil import copytree as copy_dir
 
-from .templates import readme_rst, manifest_in, setup_py, pypirc_ini
-from .shelltools import execute_shell_command, ignore_stdout, dir_context
-from .licenses import LICENSES
-from .compat import devnull
+from pyrelease.templates import readme_rst, manifest_in, setup_py, pypirc_ini
+from pyrelease.licenses import LICENSES
+from pyrelease.shelltools import execute_shell_command, ignore_stdout, dir_context
+from pyrelease.compat import devnull
 
 # ######## LOGGING #########
 logger = logging.getLogger('pyrelease')
