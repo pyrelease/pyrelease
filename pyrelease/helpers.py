@@ -9,8 +9,6 @@ import logging
 
 from .userdata import PyPiRc, GitConfig
 
-
-# ######## LOGGING #########
 logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
 
@@ -77,107 +75,76 @@ def get_user_info():
     return rv
 
 
-def get_version(py_file):
-    """Regex for scraping the license from a python file"""
-    VERSION_REGEX = re.compile(r"(?:(\d+\.(?:\d+\.)*\d+))", re.S)
-    with open(py_file, 'r') as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line.startswith("__version__"):
-                version = re.search(VERSION_REGEX, line).group()
-                logger.info("Version found - %s -", str(version))
-                return version
-    logger.warning("No version found in - %s -", py_file)
-    return None
+def get_version(module):
+    try:
+        ver = module.__version__
+    except AttributeError:
+        logger.warning("No version found.")
+        return None
+    else:
+        logger.info("Version found - %s -", str(ver))
+        return ver
 
 
-#         try:
-#             versions = subprocess.check_output('git tag --sort version:refname'.split())
-#         except subprocess.CalledProcessError as e:
-#             logging.error("Error getting version from git. (%s)", exc_info=True)
-#             return
-#         else:
-#             lines = versions.splitlines()
-#             if lines:
-#                 version = lines[-1].decode('utf-8')
-#                 logger.info("Version found in git. - %s -", str(version))
-#                 return version
+def get_license(module):
+    try:
+        ver = module.__license__
+    except AttributeError:
+        logger.warning("No license found.")
+        return None
+    else:
+        logger.info("License found - %s -", str(ver))
+        return ver
 
 
-def get_license(target):
-    """And another regex for scraping the license from a python file.."""
-    # TODO: Show some resources
-    # https://choosealicense.com/
-    with open(target, 'r') as f:
-        py_file = f.readlines()
-        for line in py_file:
-            line = line.strip()
-            if line.startswith("__license__"):
-                license_match = line[14:].replace('"', '').replace("'", "")
-                logger.info("License line found in - %s -", target)
-                return license_match
-                # TODO: Fix me :(
-                # if license_match.upper() == 'MIT':
-                #     _license = license_match.group(1)
-                #     # return _license
-                #     url = 'https://opensource.org/licenses/' + license_match
-                #     print(url)
-                #     resp = urllib.request.urlopen(url).read().decode('utf-8')
-                #     logger.info("License found in (%s) file. - %s -", str(target), str(license_match))
-                #     # resp = json.loads(resp)
-                #     pprint.pprint(resp)
-                #     print(resp['identifiers']['text'])
-                #     input()
-            # logger.warning("Still no license string :/")
-    logger.warning("No license line found in - %s -", target)
-    return None
-
-
-def get_package_info(name, package_dir):
-    """Imports the module and collects license, and description.
-     This info is returned as a dict which also contains a pointer
-     to the imported module.
-     """
+def import_target_package(package_dir):
+    """Imports the module"""
+    name = os.path.basename(package_dir)
     logger.info("called with - %s - %s", name, package_dir)
-    mod = None
-    description = ""
     if name.endswith(".py"):
         name = name[:-3]
     package_dir = os.path.abspath(os.path.dirname(package_dir))
+    logger.info("Importing module - %s -", name)
+    logger.info("Importing module from dir - %s -", package_dir)
+    sys.path.insert(0, package_dir)
     try:
-        logger.info("Importing module - %s -", name)
-        logger.info("Importing module from dir - %s -", package_dir)
-        sys.path.insert(0, package_dir)
         mod = __import__(name)
     except ImportError as e:
         logger.warning(
             "Error importing module %s", name)
+        return None
     else:
-        try:
-            entry = mod.__dict__[mod.__all__[0]]
-        except (AttributeError, KeyError):
-            logger.warning(
-                "Module has no __all__ attribute from which to "
-                "derive it's description.")
+        return mod
+
+
+def get_description(mod):
+    try:
+        entry = mod.__dict__[mod.__all__[0]]
+    except (AttributeError, KeyError):
+        logger.warning(
+            "Module has no __all__ attribute from which to "
+            "derive it's description.")
+        return ""
+    else:
+        if entry.__doc__:
+            description = entry.__doc__
+            logger.info("Description: %s", str(description))
         else:
-            if entry.__doc__:
-                description = entry.__doc__
-                logger.info("Description: %s", str(description))
-            else:
-                logger.warning(
-                    "Unable to find get a description for (%s)", name)
-    rv = dict(
-        module=mod,
-        description=description)
-    return rv
+            description = ""
+            logger.warning(
+                "Unable to find get a description for (%s)", mod.__name__)
+        return description
 
 
 def get_author(package):
+    if hasattr(package.module, "__author__"):
+        return package.module.__author__
     rv = package.user_info['pypirc'].author
-    if rv is None:
-        rv = package.user_info['gitconfig'].author
-    logger.info("Get author function returned: %s", str(rv))
-    return rv
+    if rv is not None:
+        return rv
+    rv = package.user_info['gitconfig'].author
+    if rv is not None:
+        return rv
 
 
 def get_author_email(package):
@@ -214,9 +181,6 @@ def get_name(path):
      Is there a single folder of python files? 'leftpad/' -> 'leftpad'
      If it is '.' then we use the folder name -> 'leftpad'
      """
-    if path is None:
-        logger.error("Target is None..")
-        exit()
     logger.info("Target: %s", path)
     if os.path.basename(path) == '__init__.py':
         dir_name = os.path.split(os.path.abspath(path))[-2]
@@ -270,20 +234,16 @@ def get_dependencies(target):
     module = ast.parse(open(target).read())
     deps = []
     for node in module.body:
-        # logger.info("NODE. (%s)", repr(node))
         if type(node) is ast.Import:
             for name in node.names:
                 parts = imp.find_module(name.name.split('.')[0])
-                # logger.info("name. (%s)", repr(name))
-                # logger.info("parts. (%s)",  repr(parts))
                 try:
                     if 'site-package' in parts[1]:
                         rv = name.name.split('.')[0]
                         deps.append(rv)
                         logger.info("Found dependency: %s", rv)
-                except TypeError as e:
-                    # logger.error("No parts. Continuing without - (%s)", exc_info=True)
-                    logger.warning("No parts. Continuing without.")
+                except TypeError:
+                    pass
 
         if type(node) is ast.ImportFrom:
             parts = imp.find_module(node.module.split('.')[0])
@@ -292,9 +252,8 @@ def get_dependencies(target):
                     rv = node.module.split('.')[0]
                     deps.append(rv)
                     logger.info("Found dependency: %s", rv)
-            except TypeError as e:
-                # logger.error("No parts. Continuing without - (%s)", exc_info=True)
-                logger.warning("No parts. Continuing without.")
+            except TypeError:
+                pass
 
     parsed_deps = []
     for dep in deps:
@@ -302,35 +261,6 @@ def get_dependencies(target):
         if converted is not None:
             dep = converted
         parsed_deps.append(dep)
-
-    logger.info("Found dependencies. (%s)", ", ".join(deps))
-    logger.info("Parsed dependencies. (%s)", ", ".join(parsed_deps))
+    if parsed_deps:
+        logger.info("Parsed dependencies. (%s)", ", ".join(parsed_deps))
     return parsed_deps
-
-    # logger.info("Found dependencies. (%s)", "\n".join(deps))
-    # return deps
-
-    # conversions = dict(yaml='pyyaml')
-    # module = ast.parse(open(target).read())
-    # deps = []
-    # for node in module.body:
-    #     if type(node) is ast.Import:
-    #         for name in node.names:
-    #             parts = imp.find_module(name.name.split('.')[0])
-    #             try:
-    #                 if 'site-package' in parts[1]:
-    #                     deps.append(name.name.split('.')[0])
-    #             except TypeError:
-    #                 pass
-    #     if type(node) is ast.ImportFrom:
-    #         parts = imp.find_module(node.module.split('.')[0])
-    #         try:
-    #             if 'site-package' in parts[1]:
-    #                 deps.append(node.module.split('.')[0])
-    #         except TypeError:
-    #             pass
-    # parsed_deps = []
-    # for dep in deps:
-    #     parsed_deps.append(conversions.get(dep, dep))
-    # logger.info("Found dependencies. (%s)", "\n".join(parsed_deps))
-    # return parsed_deps
