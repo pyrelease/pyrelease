@@ -8,10 +8,6 @@ SETUP_DIR = path.abspath(path.dirname(__file__))
 with open(path.join(SETUP_DIR, 'README.rst')) as f:
     long_description = f.read()
 
-# get the dependencies and installs
-with open(path.join(SETUP_DIR, 'requirements.txt')) as f:
-    all_reqs = f.read().split('\\n')
-
 
 setup(
     name='{name}',
