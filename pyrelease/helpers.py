@@ -7,7 +7,6 @@ import ast
 import imp
 import logging
 
-from .userdata import PyPiRc, GitConfig
 
 logger = logging.getLogger('pyrelease')
 logger.setLevel(logging.DEBUG)
@@ -63,40 +62,6 @@ def find_package(what_to_package):
         logger.warning("No valid package found! (%s)", what_to_package)
 
 
-def get_user_info():
-    """Fetches user info from .gitconfig, .pypirc and .hgrc files
-     if they exist and returns them as a dict."""
-    rv = {
-        "gitconfig": GitConfig(),
-        "pypirc": PyPiRc(),
-        # "hgrc":      HgRc()
-    }
-    logger.info("Got user info (%s)", str(rv))
-    return rv
-
-
-def get_version(module):
-    try:
-        ver = module.__version__
-    except AttributeError:
-        logger.warning("No version found.")
-        return None
-    else:
-        logger.info("Version found - %s -", str(ver))
-        return ver
-
-
-def get_license(module):
-    try:
-        ver = module.__license__
-    except AttributeError:
-        logger.warning("No license found.")
-        return None
-    else:
-        logger.info("License found - %s -", str(ver))
-        return ver
-
-
 def import_target_package(package_dir):
     """Imports the module"""
     name = os.path.basename(package_dir)
@@ -117,61 +82,47 @@ def import_target_package(package_dir):
         return mod
 
 
-def get_description(mod):
-    try:
-        entry = mod.__dict__[mod.__all__[0]]
-    except (AttributeError, KeyError):
-        logger.warning(
-            "Module has no __all__ attribute from which to "
-            "derive it's description.")
-        return ""
-    else:
-        if entry.__doc__:
-            description = entry.__doc__
-            logger.info("Description: %s", str(description))
-        else:
-            description = ""
-            logger.warning(
-                "Unable to find get a description for (%s)", mod.__name__)
-        return description
-
-
-def get_author(package):
-    if hasattr(package.module, "__author__"):
-        return package.module.__author__
-    rv = package.user_info['pypirc'].author
-    if rv is not None:
-        return rv
-    rv = package.user_info['gitconfig'].author
-    if rv is not None:
-        return rv
-
-
-def get_author_email(package):
-    rv = package.user_info['gitconfig'].author_email
-    logger.info("Get author email function returned: %s", str(rv))
-    return rv
-
-
 def version_from_git():
     # TODO: Implement me!
     raise NotImplementedError
 
 
-def migrate_version(file, new_version):
-    version_regex = re.compile(r"(?:(\d+\.(?:\d+\.)*\d+))", re.S)
+def migrate_source_attribute(attr, to_this, target_file, regex):
+    """Updates __magic__ attributes in the source file"""
+    change_this = re.compile(regex, re.S)
     new_file = []
-    for line in file:
-        if line.startswith("__version__"):
-            line = re.sub(version_regex, new_version, line)
-            new_file.append(line)
-            continue
+    found = False
+
+    with open(target_file, 'r') as fp:
+        lines = fp.readlines()
+
+    for line in lines:
+        if line.startswith(attr):
+            found = True
+            line = re.sub(change_this, to_this, line)
         new_file.append(line)
-    return new_file
+
+    if found:
+        with open(target_file, 'w') as fp:
+            fp.writelines(new_file)
 
 
-def resolve_path(target_path):
-    return os.path.abspath(target_path)
+def migrate_author(target_file, new_author):
+    """Updates __author__ in the source file"""
+    regex = r'\s*([^"\']*)\s*'
+    migrate_source_attribute('__author__', new_author, target_file, regex)
+
+
+def migrate_version(target_file, new_version):
+    """Updates __version__ in the source file"""
+    regex = r"(?:(\d+\.(?:\d+\.)*\d+))"
+    migrate_source_attribute('__version__', new_version, target_file, regex)
+
+
+def migrate_license(target_file, new_license):
+    """Updates __license__ in the source file"""
+    regex = r'\s*([^"\']*)\s*'
+    migrate_source_attribute('__license__', new_license, target_file, regex)
 
 
 def get_name(path):
@@ -222,9 +173,6 @@ def get_dependencies(target):
 
      Returns a list of package names.
      """
-    # TODO: Make this look for a requirements.tx file also
-    # TODO: Get more popular conversions.
-    conversions = dict(yaml='pyyaml')
 
     # So ast can import the target we must add it's
     # directory to the system path.
@@ -243,6 +191,9 @@ def get_dependencies(target):
                         deps.append(rv)
                         logger.info("Found dependency: %s", rv)
                 except TypeError:
+                    # Sometimes parts is None and throws a TyoeError
+                    # I think this is from __future__ imports, but
+                    # this fixes it from crashing anyways
                     pass
 
         if type(node) is ast.ImportFrom:
@@ -253,9 +204,14 @@ def get_dependencies(target):
                     deps.append(rv)
                     logger.info("Found dependency: %s", rv)
             except TypeError:
+                # This is passed for the same reason as above
                 pass
-
     parsed_deps = []
+
+    # Some dependencies go by a different name than their PyPi
+    # counterparts. This is an easy way to convert known cases
+    # until something proves to work better.
+    conversions = dict(yaml='pyyaml')
     for dep in deps:
         converted = conversions.get(dep, None)
         if converted is not None:

@@ -1,4 +1,4 @@
-# coding=utf-8
+#!/usr/bin/env
 import os
 import logging
 
@@ -190,7 +190,6 @@ def release(g, project, giver, test_pypi, verbose, target):
     """
     from .pyrelease import PyPackage
     from .builder import Builder
-    from .licenses import LICENSES
 
     package = PyPackage(project, verbose=verbose)
 
@@ -227,7 +226,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ---------------------------------- Verify project name
     g.text(" ")
     package.name = g.prompt(
-        "Release name:", package.name,
+        "Release name", package.name,
         "Is %s the name you want to go with for your release? "
         "We try to guess it based on the name of the file or "
         "directory you ran PyRelease in, so it's not always what "
@@ -239,7 +238,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ---------------------------------- Package short description
     g.text(" ")
     package.description = g.prompt(
-        "Short Description:", package.description,
+        "Short Description", package.description,
         "PyPackage tries to automatically fill the package "
         "description based on the doc-string found in the "
         "first function listed in __all__. This doesn't "
@@ -258,15 +257,17 @@ def release(g, project, giver, test_pypi, verbose, target):
 
     # ---------------------------------- Authors name
     g.text(" ")
+    if package.author is None:
+        package.author = package.user_info['gitconfig'].author
     package.author = g.prompt(
-        "Author: ", package.author,
+        "Author", package.author,
         "Your name as you want it to appear in the documentation "
         "for your release.")
 
     # ---------------------------------- Authors e-mail
     g.text(" ")
     package.author_email = g.prompt(
-        "E-mail: ", package.author_email,
+        "E-mail", package.author_email,
         "Leaving an e-mail gives people who use your package a way to "
         "reach you with feedback and support.")
 
@@ -285,7 +286,7 @@ def release(g, project, giver, test_pypi, verbose, target):
 
     else:
         proceed = g.prompt(
-            "Choose a License -", True,
+            "Choose a License", True,
             "Having a license for your source code is always a good idea. "
             "By default PyRelease will add an MIT license to your source if "
             "no `__version__` variable was found in your module. However "
@@ -300,7 +301,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     package.license = _license
 
     g.text(" ")
-    g.red_text("Using license: %s" % package.license)
+    g.red_text("Using license %s" % package.license)
 
     # ---------------------------------- Verify requirements
     g.text(" ")
@@ -318,7 +319,7 @@ def release(g, project, giver, test_pypi, verbose, target):
 
     g.text(" ")
     add_deps = g.prompt(
-        "Add more dependencies to list? ", False,
+        "Add more dependencies to list?", False,
         "You can append more dependencies to the list. You can't however "
         "delete entries, this will probably be implemented in the future.")
     if add_deps:
@@ -453,7 +454,7 @@ def release(g, project, giver, test_pypi, verbose, target):
     # ---------------------------------- Preview README.rst
     g.text(" ")
     preview_readme = g.prompt(
-        "Preview README.rst file? ", False,
+        "Preview README.rst file?", False,
         "You can preview your auto-generated README.rst file now "
         "if you'd like. This will open up your default browser to "
         "a preview of the file. When you're ready to proceed again, "
@@ -535,12 +536,12 @@ def release(g, project, giver, test_pypi, verbose, target):
             g.text(" ")
             g.green_text("Uploading to PyPi TEST site..")
             builder.upload_to_pypi_test_site(suppress=verbose)
-            if not builder.errors:
-                # Show in browser
-                g.text(" ")
-                view_on_pypi(g, builder, package, URLS)
-            else:
-                g.red_text(builder.errors)
+            # if not builder.errors:
+            #     # Show in browser
+            #     g.text(" ")
+            #     view_on_pypi(g, builder, package, URLS)
+            # else:
+            #     g.red_text(builder.errors)
 
     # Confirm upload to MAIN SERVER
     g.text("")

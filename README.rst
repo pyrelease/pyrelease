@@ -178,10 +178,13 @@ Alter magic variable.
     - The first function found in this list will have its docstring used as the packages short description *by default*, the short description can be changed if there's an error so don't worry.
 
  **__license__**
-    - If this is set PyPackage will attempt to include it with the package. This works using a template engine so more licenses can be added rather easily if requested. Currently included licenses can be found in the `pyrelease/licenses/` folder.
+    - If a particular license is set, PyPackage will attempt to include that license with the package. This works using a template engine so more licenses can be added rather easily if requested. Currently included licenses can be found in the `pyrelease/licenses/` folder.
 
  **__version__**
     - If this is set then PyRelease will make this the default version when creating your release.
+
+ **__author__**
+    - Your name shows up on PyPi and many places in the documentation. Set it in the script for PyRelease to use it.
 
  **def main():**
     - If your package has a main function it becomes the script entry point once installed and invoked from the command line.

@@ -11,6 +11,7 @@ from pyrelease.templates import readme_rst, manifest_in, setup_py, pypirc_ini
 from pyrelease.licenses import LICENSES
 from pyrelease.shelltools import execute_shell_command, ignore_stdout, dir_context
 from pyrelease.compat import devnull
+from pyrelease.helpers import migrate_author, migrate_version, migrate_license
 
 # ######## LOGGING #########
 logger = logging.getLogger('pyrelease')
@@ -57,6 +58,25 @@ class Builder(object):
         self.built = False
         self.uploaded = False
 
+    def migrate_source_attributes(self):
+        """This method updates all the magic attributes in the new
+         source file. This way the original source remains unchanged.
+         """
+        target_source = self.package.target_file
+        if target_source == '__init__.py':
+            target_dir = os.path.join(self.build_dir, self.package.name)
+            target = os.path.join(target_dir, target_source)
+        else:
+            target = os.path.join(self.build_dir, os.path.basename(target_source))
+
+        logger.info("Migrating source attributes.")
+        migrate_author(target, self.package.author)
+        logger.info("Author: (%s)", self.package.author)
+        migrate_version(target, self.package.version)
+        logger.info("Version: (%s)", self.package.version)
+        migrate_license(target, self.package.version)
+        logger.info("License: (%s)", self.package.license)
+
     def build_package(self):
         """Creates the release directory and copies your module as well
          as any data files if they exist.
@@ -75,6 +95,7 @@ class Builder(object):
                 logger.error("File exists error in build_package: (%s)", exc_info=True)
 
         self.copy_files()
+        # self.migrate_source_attributes()
         self.built = True
 
     def build_readme(self):
@@ -121,7 +142,7 @@ class Builder(object):
 
         if os.path.basename(self.package.target_file) == '__init__.py':
             py_modules = ''
-            packages = "packages=['%s']," % self.package.name
+            packages = "packages=find_packages(exclude=['contrib', 'docs', 'tests']),"
         elif self.package.is_single_file:
             py_modules = "py_modules=['%s']," % self.package.name
             packages = ''
@@ -129,9 +150,9 @@ class Builder(object):
             raise NotImplementedError('only single files supported')
             # py_modules = ''
             # packages = "packages=find_packages(exclude=['contrib', 'docs', 'tests']),"
-
-        install_requires = "install_requires=%s," % repr(
-            self.package.requirements)
+        #
+        # install_requires = "install_requires=%s," % repr(
+        #     self.package.requirements)
 
         rv = setup_py.TEMPLATE.format(
             url=self.package.url,
@@ -142,7 +163,7 @@ class Builder(object):
             author=self.package.author,
             author_email=self.package.author_email,
             console_scripts=console_scripts,
-            install_requires=install_requires,
+            install_requires=self.package.install_requires,
             packages=packages,
             py_modules=py_modules,
             find_packages=self.package.find_packages,
@@ -234,8 +255,9 @@ class Builder(object):
                 os.mkdir(target_dir)
             except OSError:
                 pass
-            logger.info("%s folder is being copied to %s", what_to_copy, self.build_dir)
-            copy_to_dir(what_to_copy, target_dir)
+            else:
+                logger.info("%s folder is being copied to %s", what_to_copy, self.build_dir)
+                copy_to_dir(what_to_copy, target_dir)
         else:
             logger.info("%s file is being copied to %s", what_to_copy, self.build_dir)
             copy_to_dir(what_to_copy, self.build_dir)
